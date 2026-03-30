@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Базовые стили */
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Кастомные стили для таблиц */
+.table-container {
+  @apply overflow-x-auto rounded-lg border border-gray-200;
+}
+
+/* Стили для карточек метрик */
+.metric-card {
+  @apply bg-white rounded-lg shadow p-4 border border-gray-100;
+}
+
+.metric-card:hover {
+  @apply shadow-md transition-shadow duration-200;
+}
+
+/* Статус бейджи */
+.status-badge {
+  @apply px-2 py-1 rounded-full text-xs font-medium;
+}
+
+.status-active {
+  @apply bg-green-100 text-green-800;
+}
+
+.status-paused {
+  @apply bg-yellow-100 text-yellow-800;
+}
+
+.status-deleted {
+  @apply bg-red-100 text-red-800;
+}
+
+/* Кнопки */
+.btn-primary {
+  @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+}
+
+.btn-secondary {
+  @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+}
+
+.btn-danger {
+  @apply bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+}
+
+/* Инпуты */
+.input-field {
+  @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+}
+
+/* Селекты */
+.select-field {
+  @apply w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+}
+
+/* Сайдбар */
+.sidebar {
+  @apply bg-gray-900 text-white w-64 min-h-screen;
+}
+
+.sidebar-link {
+  @apply flex items-center px-4 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors duration-200;
+}
+
+.sidebar-link.active {
+  @apply bg-blue-600 text-white;
+}
+
+/* Дашборд */
+.dashboard-stat {
+  @apply text-3xl font-bold text-gray-900;
+}
+
+.dashboard-label {
+  @apply text-sm text-gray-500 mt-1;
+}
+
+/* Таблицы */
+.table-header {
+  @apply bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider;
+}
+
+.table-row {
+  @apply bg-white border-b border-gray-200 hover:bg-gray-50;
+}
+
+.table-cell {
+  @apply px-6 py-4 whitespace-nowrap text-sm;
+}
+
+/* Модальные окна */
+.modal-overlay {
+  @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50;
+}
+
+.modal-content {
+  @apply bg-white rounded-lg shadow-xl max-w-md w-full mx-4;
+}
+
+/* Уведомления */
+.notification {
+  @apply fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50;
+}
+
+.notification-success {
+  @apply bg-green-500 text-white;
+}
+
+.notification-error {
+  @apply bg-red-500 text-white;
+}
+
+.notification-warning {
+  @apply bg-yellow-500 text-white;
+}
+
+/* Skeleton loading */
+.skeleton {
+  @apply animate-pulse bg-gray-200 rounded;
+}
+
+/* Адаптивные стили */
+@media (max-width: 768px) {
+  .sidebar {
+    @apply w-full fixed bottom-0 top-auto h-16 flex-row;
+  }
+  
+  .sidebar-link {
+    @apply flex-col text-xs py-2;
+  }
+}

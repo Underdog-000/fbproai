@@ -1,0 +1,194 @@
+// Routes для работы с рекламными аккаунтами
+// CRUD операции и синхронизация данных
+
+import express from 'express';
+import { PrismaClient } from '@prisma/client';
+import { authenticate, checkAccountOwnership } from '../middleware/auth.js';
+import { syncAccountData } from '../services/facebook.js';
+
+const router = express.Router();
+const prisma = new PrismaClient();
+
+// Все routes требуют аутентификации
+router.use(authenticate);
+
+/**
+ * GET /api/accounts
+ * Получить список аккаунтов пользователя
+ */
+router.get('/', async (req, res) => {
+  try {
+    const accounts = await prisma.adAccount.findMany({
+      where: { userId: req.user.id },
+      select: {
+        id: true,
+        accountId: true,
+        name: true,
+        timezone: true,
+        status: true,
+        tokenExpiresAt: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: {
+          select: {
+            campaigns: true,
+            rules: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    
+    res.json({ accounts });
+  } catch (error) {
+    console.error('Get accounts error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to get accounts',
+    });
+  }
+});
+
+/**
+ * GET /api/accounts/:accountId
+ * Получить детальную информацию об аккаунте
+ */
+router.get('/:accountId', checkAccountOwnership, async (req, res) => {
+  try {
+    const account = await prisma.adAccount.findUnique({
+      where: { id: req.adAccount.id },
+      include: {
+        campaigns: {
+          orderBy: { createdTime: 'desc' },
+          take: 100,
+        },
+        _count: {
+          select: {
+            campaigns: true,
+            adSets: true,
+            ads: true,
+            rules: true,
+          },
+        },
+      },
+    });
+    
+    res.json({ account });
+  } catch (error) {
+    console.error('Get account error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to get account',
+    });
+  }
+});
+
+/**
+ * POST /api/accounts/:accountId/sync
+ * Синхронизировать данные аккаунта с Facebook
+ */
+router.post('/:accountId/sync', checkAccountOwnership, async (req, res) => {
+  try {
+    const result = await syncAccountData(req.adAccount.id);
+    
+    res.json({
+      message: 'Account synced successfully',
+      stats: result,
+    });
+  } catch (error) {
+    console.error('Sync account error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to sync account',
+    });
+  }
+});
+
+/**
+ * GET /api/accounts/:accountId/stats
+ * Получить статистику аккаунта
+ */
+router.get('/:accountId/stats', checkAccountOwnership, async (req, res) => {
+  try {
+    const { days = 7 } = req.query;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - parseInt(days));
+    
+    const metrics = await prisma.metricSnapshot.findMany({
+      where: {
+        adAccountId: req.adAccount.id,
+        entityType: 'account',
+        date: { gte: startDate },
+      },
+      orderBy: { date: 'asc' },
+    });
+    
+    // Агрегируем данные
+    const aggregated = metrics.reduce((acc, m) => {
+      acc.totalSpend += m.spend;
+      acc.totalImpressions += m.impressions;
+      acc.totalClicks += m.clicks;
+      acc.totalLeads += m.leads;
+      acc.totalConversions += m.conversions;
+      acc.totalRevenue += m.revenue;
+      acc.totalApproves += m.approves;
+      return acc;
+    }, {
+      totalSpend: 0,
+      totalImpressions: 0,
+      totalClicks: 0,
+      totalLeads: 0,
+      totalConversions: 0,
+      totalRevenue: 0,
+      totalApproves: 0,
+    });
+    
+    // Вычисляем производные метрики
+    aggregated.avgCTR = aggregated.totalImpressions > 0 
+      ? (aggregated.totalClicks / aggregated.totalImpressions) * 100 
+      : 0;
+    aggregated.avgCPC = aggregated.totalClicks > 0 
+      ? aggregated.totalSpend / aggregated.totalClicks 
+      : 0;
+    aggregated.avgCPL = aggregated.totalLeads > 0 
+      ? aggregated.totalSpend / aggregated.totalLeads 
+      : 0;
+    aggregated.roas = aggregated.totalSpend > 0 
+      ? aggregated.totalRevenue / aggregated.totalSpend 
+      : 0;
+    
+    res.json({
+      period: `${days} days`,
+      metrics: aggregated,
+      daily: metrics,
+    });
+  } catch (error) {
+    console.error('Get account stats error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to get account stats',
+    });
+  }
+});
+
+/**
+ * DELETE /api/accounts/:accountId
+ * Удалить аккаунт
+ */
+router.delete('/:accountId', checkAccountOwnership, async (req, res) => {
+  try {
+    await prisma.adAccount.delete({
+      where: { id: req.adAccount.id },
+    });
+    
+    res.json({ message: 'Account deleted successfully' });
+  } catch (error) {
+    console.error('Delete account error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to delete account',
+    });
+  }
+});
+
+export default router;
