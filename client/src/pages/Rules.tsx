@@ -38,7 +38,10 @@ const [togglingRuleId, setTogglingRuleId] = useState<string | null>(null)
   },
   enabled: !!accountId,
 })
-  
+  const handleRefreshRules = async () => {
+  await refetch()
+  alert('Список правил обновлён')
+}
   const rules = rulesData?.rules || []
 
   const toggleRuleMutation = useMutation({
