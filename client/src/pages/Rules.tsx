@@ -1,12 +1,12 @@
 import { Link } from 'react-router-dom'
 import React, { useContext, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { 
-  Settings, 
-  Loader2, 
-  Plus, 
-  Play, 
-  Pause, 
+import {
+  Settings,
+  Loader2,
+  Plus,
+  Play,
+  Pause,
   Clock,
   Zap,
   RefreshCw
@@ -16,9 +16,9 @@ import { ApiContext } from '../App'
 const Rules: React.FC = () => {
   const api = useContext(ApiContext)
   const queryClient = useQueryClient()
-const [togglingRuleId, setTogglingRuleId] = useState<string | null>(null)
-  
-  // Запрос списка аккаунтов
+
+  const [togglingRuleId, setTogglingRuleId] = useState<string | null>(null)
+
   const { data: accountsData } = useQuery({
     queryKey: ['accounts'],
     queryFn: async () => {
@@ -26,118 +26,124 @@ const [togglingRuleId, setTogglingRuleId] = useState<string | null>(null)
       return response.data
     },
   })
-  
-  // Запрос правил для первого аккаунта
+
   const accountId = accountsData?.accounts?.[0]?.accountId
-  const { data: rulesData, isLoading, refetch } = useQuery({
-  queryKey: ['rules', accountId],
-  queryFn: async () => {
-    if (!accountId) return null
-    const response = await api.get(`/rules/${accountId}`)
-    return response.data
-  },
-  enabled: !!accountId,
-})
-  const handleRefreshRules = async () => {
-  await refetch()
-  alert('Список правил обновлён')
-}
+
+  const {
+    data: rulesData,
+    isLoading,
+    refetch,
+  } = useQuery({
+    queryKey: ['rules', accountId],
+    queryFn: async () => {
+      if (!accountId) return null
+      const response = await api.get(`/rules/${accountId}`)
+      return response.data
+    },
+    enabled: !!accountId,
+  })
+
   const rules = rulesData?.rules || []
 
-  const toggleRuleMutation = useMutation({
-  mutationFn: async (ruleId: string) => {
-    const response = await api.patch(`/rules/${ruleId}/toggle`)
-    return response.data
-  },
-  onSuccess: async () => {
-    setTogglingRuleId(null)
-    await queryClient.invalidateQueries({ queryKey: ['rules', accountId] })
-    alert('Статус правила обновлён')
-  },
-  onError: (error: any) => {
-    setTogglingRuleId(null)
-    const message =
-      error?.response?.data?.message ||
-      error?.message ||
-      'Ошибка обновления правила'
-    alert(message)
-  },
-})
-
-  const handleToggleRule = (ruleId: string) => {
-  if (togglingRuleId) return
-  setTogglingRuleId(ruleId)
-  toggleRuleMutation.mutate(ruleId)
-}
- const createRuleMutation = useMutation({
-  mutationFn: async (payload: any) => {
-    const response = await api.post(`/rules/${accountId}`, payload)
-    return response.data
-  },
-  onSuccess: async () => {
-    await queryClient.invalidateQueries({ queryKey: ['rules', accountId] })
-    alert('Правило создано')
-  },
-  onError: (error: any) => {
-    const message =
-      error?.response?.data?.message ||
-      error?.message ||
-      'Ошибка создания правила'
-    alert(message)
-  },
-}) 
-
-const handleCreateRule = () => {
-  if (!accountId) {
-    alert('Сначала подключите аккаунт')
-    return
+  const handleRefreshRules = async () => {
+    await refetch()
+    alert('Список правил обновлён')
   }
 
-  const name = window.prompt('Название правила', 'Выключить при CPL > 10')
-  if (!name) return
-
-  const entityType = window.prompt('Сущность: ad / adset / campaign', 'ad')
-  if (!entityType) return
-
-  const field = window.prompt('Поле условия', 'cpl')
-  if (!field) return
-
-  const operator = window.prompt('Оператор', 'greater_than')
-  if (!operator) return
-
-  const valueInput = window.prompt('Значение', '10')
-  if (valueInput === null || valueInput === '') return
-
-  const action = window.prompt('Действие: pause / enable', 'pause')
-  if (!action) return
-
-  const cooldownInput = window.prompt('Cooldown в минутах', '60')
-  const cooldownMinutes = cooldownInput ? parseInt(cooldownInput, 10) : 60
-
-  const numericValue = Number(valueInput)
-  const value = Number.isNaN(numericValue) ? valueInput : numericValue
-
-  createRuleMutation.mutate({
-    name,
-    entityType,
-    field,
-    operator,
-    value,
-    action,
-    cooldownMinutes: Number.isNaN(cooldownMinutes) ? 60 : cooldownMinutes,
+  const toggleRuleMutation = useMutation({
+    mutationFn: async (ruleId: string) => {
+      const response = await api.patch(`/rules/${ruleId}/toggle`)
+      return response.data
+    },
+    onSuccess: async () => {
+      setTogglingRuleId(null)
+      await queryClient.invalidateQueries({ queryKey: ['rules', accountId] })
+      alert('Статус правила обновлён')
+    },
+    onError: (error: any) => {
+      setTogglingRuleId(null)
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Ошибка обновления правила'
+      alert(message)
+    },
   })
-}
-  
+
+  const createRuleMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const response = await api.post(`/rules/${accountId}`, payload)
+      return response.data
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['rules', accountId] })
+      alert('Правило создано')
+    },
+    onError: (error: any) => {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Ошибка создания правила'
+      alert(message)
+    },
+  })
+
+  const handleToggleRule = (ruleId: string) => {
+    if (togglingRuleId) return
+    setTogglingRuleId(ruleId)
+    toggleRuleMutation.mutate(ruleId)
+  }
+
+  const handleCreateRule = () => {
+    if (!accountId) {
+      alert('Сначала подключите аккаунт')
+      return
+    }
+
+    const name = window.prompt('Название правила', 'Выключить при CPL > 10')
+    if (!name) return
+
+    const entityType = window.prompt('Сущность: ad / adset / campaign', 'ad')
+    if (!entityType) return
+
+    const field = window.prompt('Поле условия', 'cpl')
+    if (!field) return
+
+    const operator = window.prompt('Оператор', 'greater_than')
+    if (!operator) return
+
+    const valueInput = window.prompt('Значение', '10')
+    if (valueInput === null || valueInput === '') return
+
+    const action = window.prompt('Действие: pause / enable', 'pause')
+    if (!action) return
+
+    const cooldownInput = window.prompt('Cooldown в минутах', '60')
+    const cooldownMinutes = cooldownInput ? parseInt(cooldownInput, 10) : 60
+
+    const numericValue = Number(valueInput)
+    const value = Number.isNaN(numericValue) ? valueInput : numericValue
+
+    createRuleMutation.mutate({
+      name,
+      entityType,
+      field,
+      operator,
+      value,
+      action,
+      cooldownMinutes: Number.isNaN(cooldownMinutes) ? 60 : cooldownMinutes,
+    })
+  }
+
   return (
     <div className="space-y-6">
-      {/* Заголовок */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Правила</h1>
           <p className="text-gray-600 mt-1">Автоматизация управления рекламой</p>
         </div>
         <div className="flex space-x-3">
-          <button 
+          <button
             onClick={handleRefreshRules}
             className="btn-secondary flex items-center space-x-2"
             disabled={isLoading}
@@ -145,28 +151,29 @@ const handleCreateRule = () => {
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             <span>Обновить</span>
           </button>
+
           <button
-  className="btn-primary flex items-center space-x-2"
-  onClick={handleCreateRule}
-  disabled={!accountId || createRuleMutation.isPending}
->
+            className="btn-primary flex items-center space-x-2"
+            onClick={handleCreateRule}
+            disabled={!accountId || createRuleMutation.isPending}
+          >
             <Plus className="h-4 w-4" />
             <span>Создать правило</span>
           </button>
         </div>
       </div>
-      
-      {/* Информация об аккаунте */}
+
       {!accountId && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <p className="text-yellow-800">
             Сначала подключите рекламный аккаунт Facebook на странице{' '}
-            <Link to="/accounts" className="font-medium underline">Аккаунты</Link>
+            <Link to="/accounts" className="font-medium underline">
+              Аккаунты
+            </Link>
           </p>
         </div>
       )}
-      
-      {/* Список правил */}
+
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
@@ -176,16 +183,16 @@ const handleCreateRule = () => {
           <Zap className="h-16 w-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">Нет правил</h3>
           <p className="text-gray-500 mb-6">
-            {accountId 
-              ? 'Создайте правила для автоматического управления рекламой' 
+            {accountId
+              ? 'Создайте правила для автоматического управления рекламой'
               : 'Подключите аккаунт для создания правил'}
           </p>
           {accountId && (
             <button
-  className="btn-primary inline-flex items-center space-x-2"
-  onClick={handleCreateRule}
-  disabled={createRuleMutation.isPending}
->
+              className="btn-primary inline-flex items-center space-x-2"
+              onClick={handleCreateRule}
+              disabled={createRuleMutation.isPending}
+            >
               <Plus className="h-5 w-5" />
               <span>Создать правило</span>
             </button>
@@ -193,91 +200,96 @@ const handleCreateRule = () => {
         </div>
       ) : (
         <div className="grid gap-4">
-  {rules.map((rule: any) => {
-    const parsedCondition = (() => {
-      try {
-        return JSON.parse(rule.condition)
-      } catch {
-        return null
-      }
-    })()
+          {rules.map((rule: any) => {
+            let parsedCondition: any = null
+            try {
+              parsedCondition = JSON.parse(rule.condition)
+            } catch {
+              parsedCondition = null
+            }
 
-    return (
-      <div key={rule.id} className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-start justify-between">
-          <div className="flex items-start space-x-4">
-            <div className={`p-3 rounded-lg ${rule.isActive ? 'bg-green-100' : 'bg-gray-100'}`}>
-              <Zap className={`h-6 w-6 ${rule.isActive ? 'text-green-600' : 'text-gray-400'}`} />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">{rule.name}</h3>
-              {rule.description && (
-                <p className="text-sm text-gray-500 mt-1">{rule.description}</p>
-              )}
-              <div className="flex items-center space-x-4 mt-2">
-                <div className="flex items-center text-sm text-gray-500">
-                  <Settings className="h-4 w-4 mr-1" />
-                  <span>Сущность: {rule.entityType}</span>
+            return (
+              <div key={rule.id} className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start space-x-4">
+                    <div className={`p-3 rounded-lg ${rule.isActive ? 'bg-green-100' : 'bg-gray-100'}`}>
+                      <Zap className={`h-6 w-6 ${rule.isActive ? 'text-green-600' : 'text-gray-400'}`} />
+                    </div>
+
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">{rule.name}</h3>
+
+                      {rule.description && (
+                        <p className="text-sm text-gray-500 mt-1">{rule.description}</p>
+                      )}
+
+                      <div className="flex items-center space-x-4 mt-2">
+                        <div className="flex items-center text-sm text-gray-500">
+                          <Settings className="h-4 w-4 mr-1" />
+                          <span>Сущность: {rule.entityType}</span>
+                        </div>
+
+                        <div className="flex items-center text-sm text-gray-500">
+                          <Clock className="h-4 w-4 mr-1" />
+                          <span>Cooldown: {rule.cooldownMinutes} мин</span>
+                        </div>
+
+                        <div className={`flex items-center text-sm ${rule.isActive ? 'text-green-600' : 'text-gray-500'}`}>
+                          {rule.isActive ? (
+                            <Play className="h-4 w-4 mr-1" />
+                          ) : (
+                            <Pause className="h-4 w-4 mr-1" />
+                          )}
+                          <span>{rule.isActive ? 'Активно' : 'Приостановлено'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <button
+                      className="btn-secondary"
+                      onClick={() => handleToggleRule(rule.id)}
+                      disabled={togglingRuleId === rule.id}
+                    >
+                      {togglingRuleId === rule.id
+                        ? 'Обновление...'
+                        : rule.isActive
+                          ? 'Пауза'
+                          : 'Запустить'}
+                    </button>
+
+                    <button className="btn-secondary" disabled>
+                      Редактировать
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center text-sm text-gray-500">
-                  <Clock className="h-4 w-4 mr-1" />
-                  <span>Cooldown: {rule.cooldownMinutes} мин</span>
-                </div>
-                <div className={`flex items-center text-sm ${rule.isActive ? 'text-green-600' : 'text-gray-500'}`}>
-                  {rule.isActive ? (
-                    <Play className="h-4 w-4 mr-1" />
-                  ) : (
-                    <Pause className="h-4 w-4 mr-1" />
-                  )}
-                  <span>{rule.isActive ? 'Активно' : 'Приостановлено'}</span>
+
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Условие</p>
+                      <div className="bg-gray-50 rounded p-2 text-sm">
+                        {parsedCondition
+                          ? `${parsedCondition.field} ${parsedCondition.operator} ${parsedCondition.value}`
+                          : 'Некорректное условие'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Действие</p>
+                      <div className="bg-gray-50 rounded p-2 text-sm">
+                        {rule.action}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <button
-              className="btn-secondary"
-              onClick={() => handleToggleRule(rule.id)}
-              disabled={togglingRuleId === rule.id}
-            >
-              {togglingRuleId === rule.id
-                ? 'Обновление...'
-                : rule.isActive
-                  ? 'Пауза'
-                  : 'Запустить'}
-            </button>
-            <button className="btn-secondary">
-              Редактировать
-            </button>
-          </div>
+            )
+          })}
         </div>
+      )}
 
-        <div className="mt-4 pt-4 border-t border-gray-100">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Условие</p>
-              <div className="bg-gray-50 rounded p-2 text-sm">
-                {parsedCondition
-                  ? `${parsedCondition.field} ${parsedCondition.operator} ${parsedCondition.value}`
-                  : 'Некорректное условие'}
-              </div>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Действие</p>
-              <div className="bg-gray-50 rounded p-2 text-sm">
-                {rule.action}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  })}
-</div>
-  )}
-      
-      {/* Примеры правил */}
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Примеры правил</h3>
         <div className="space-y-4">
@@ -290,6 +302,7 @@ const handleCreateRule = () => {
               Условие: CPL greater_than 10 | Действие: pause
             </div>
           </div>
+
           <div className="border border-gray-200 rounded-lg p-4">
             <h4 className="font-medium text-gray-900">Выключить при spend &gt; $50 без лидов</h4>
             <p className="text-sm text-gray-500 mt-1">
@@ -299,6 +312,7 @@ const handleCreateRule = () => {
               Условие: spend greater_than 50 И leads equals 0 | Действие: pause
             </div>
           </div>
+
           <div className="border border-gray-200 rounded-lg p-4">
             <h4 className="font-medium text-gray-900">Включить в 9:00 MSK</h4>
             <p className="text-sm text-gray-500 mt-1">
@@ -310,8 +324,7 @@ const handleCreateRule = () => {
           </div>
         </div>
       </div>
-      
-      {/* Информация */}
+
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h4 className="font-medium text-blue-900 mb-2">Информация</h4>
         <ul className="text-sm text-blue-800 space-y-1">
