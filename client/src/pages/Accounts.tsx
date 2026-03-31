@@ -34,12 +34,18 @@ const Accounts: React.FC = () => {
       return response.data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['accounts'] })
-      setSyncingId(null)
-    },
-    onError: () => {
-      setSyncingId(null)
-    },
+  queryClient.invalidateQueries({ queryKey: ['accounts'] })
+  setSyncingId(null)
+  alert('Синхронизация завершена')
+},
+    onError: (error: any) => {
+  setSyncingId(null)
+  const message =
+    error?.response?.data?.message ||
+    error?.message ||
+    'Ошибка синхронизации'
+  alert(message)
+},
   })
   
   // Мутация для удаления
@@ -49,8 +55,10 @@ const Accounts: React.FC = () => {
       return response.data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['accounts'] })
-    },
+  queryClient.invalidateQueries({ queryKey: ['accounts'] })
+  setSyncingId(null)
+  alert('Удалено')
+},
   })
   
   // Facebook OAuth
