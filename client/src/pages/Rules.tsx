@@ -87,7 +87,7 @@ const [togglingRuleId, setTogglingRuleId] = useState<string | null>(null)
   },
 }) 
 
-  const handleCreateRule = () => {
+const handleCreateRule = () => {
   if (!accountId) {
     alert('Сначала подключите аккаунт')
     return
@@ -116,11 +116,6 @@ const [togglingRuleId, setTogglingRuleId] = useState<string | null>(null)
 
   const numericValue = Number(valueInput)
   const value = Number.isNaN(numericValue) ? valueInput : numericValue
-
-  const handleRefreshRules = async () => {
-  await refetch()
-  alert('Список правил обновлён')
-}
 
   createRuleMutation.mutate({
     name,
