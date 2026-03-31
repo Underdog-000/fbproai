@@ -17,6 +17,7 @@ const Accounts: React.FC = () => {
   const { user } = useContext(AuthContext)
   const queryClient = useQueryClient()
   const [syncingId, setSyncingId] = useState<string | null>(null)
+  const [isSyncingAll, setIsSyncingAll] = useState(false)
   
   // Запрос списка аккаунтов
   const { data, isLoading, refetch } = useQuery({
@@ -47,7 +48,40 @@ const Accounts: React.FC = () => {
   alert(message)
 },
   })
-  
+  const handleSyncAll = async () => {
+  if (!accounts.length || isSyncingAll) return
+
+  setIsSyncingAll(true)
+
+  let successCount = 0
+  let failedCount = 0
+  const failedAccounts: string[] = []
+
+  try {
+    for (const account of accounts) {
+      try {
+        await api.post(`/accounts/${account.accountId}/sync`)
+        successCount++
+      } catch (error: any) {
+        failedCount++
+        failedAccounts.push(account.name || account.accountId)
+        console.error(`Failed to sync account ${account.accountId}:`, error)
+      }
+    }
+
+    await queryClient.invalidateQueries({ queryKey: ['accounts'] })
+
+    if (failedCount === 0) {
+      alert(`Синхронизация завершена. Успешно: ${successCount}`)
+    } else {
+      alert(
+        `Синхронизация завершена.\nУспешно: ${successCount}\nС ошибкой: ${failedCount}\n\nПроблемные аккаунты:\n${failedAccounts.join('\n')}`
+      )
+    }
+  } finally {
+    setIsSyncingAll(false)
+  }
+}
   // Мутация для удаления
   const deleteMutation = useMutation({
     mutationFn: async (accountId: string) => {
@@ -95,14 +129,18 @@ const Accounts: React.FC = () => {
           <p className="text-gray-600 mt-1">Управление рекламными аккаунтами Facebook</p>
         </div>
         <div className="flex space-x-3">
-          <button 
-            onClick={() => refetch()}
-            className="btn-secondary flex items-center space-x-2"
-            disabled={isLoading}
-          >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>Обновить</span>
-          </button>
+          <button
+  onClick={handleSyncAll}
+  className="btn-secondary flex items-center space-x-2"
+  disabled={isLoading || isSyncingAll || accounts.length === 0}
+>
+  {isSyncingAll ? (
+    <Loader2 className="h-4 w-4 animate-spin" />
+  ) : (
+    <RefreshCw className="h-4 w-4" />
+  )}
+  <span>Синхронизировать все</span>
+</button>
           <button 
             onClick={handleConnectFacebook}
             className="btn-primary flex items-center space-x-2"
