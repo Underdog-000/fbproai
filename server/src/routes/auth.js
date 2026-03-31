@@ -257,11 +257,11 @@ router.get('/facebook/callback', async (req, res) => {
     const token = generateToken(userId);
     
     // Редирект на frontend с токеном
-    const frontendUrl = process.env.NODE_ENV === 'production' 
-      ? '/' 
-      : 'http://localhost:5173';
-    
-    res.redirect(`${frontendUrl}?token=${token}&accounts=${adAccounts.length}`);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+return res.redirect(
+  `${frontendUrl}/auth/callback?token=${token}&accounts=${accounts.length}`
+);
     
   } catch (error) {
     console.error('Facebook OAuth callback error:', error);
