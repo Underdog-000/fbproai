@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import React, { useContext } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { 
@@ -60,7 +61,7 @@ const AI: React.FC = () => {
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <p className="text-yellow-800">
             Сначала подключите рекламный аккаунт Facebook на странице{' '}
-            <a href="/accounts" className="font-medium underline">Аккаунты</a>
+            <Link to="/accounts" className="font-medium underline">Аккаунты</Link>
           </p>
         </div>
       )}
