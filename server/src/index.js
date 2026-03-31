@@ -10,6 +10,7 @@ import config from './config/index.js';
 // Routes
 import authRoutes from './routes/auth.js';
 import accountRoutes from './routes/accounts.js';
+import rulesRoutes from './routes/rules.js';
 
 // Services
 import { syncAccountData, updateEntityStatus } from './services/facebook.js';
@@ -23,6 +24,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+
 // Логирование запросов в development
 if (config.nodeEnv === 'development') {
   app.use((req, res, next) => {
@@ -34,6 +36,7 @@ if (config.nodeEnv === 'development') {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/accounts', accountRoutes);
+app.use('/api/rules', rulesRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
