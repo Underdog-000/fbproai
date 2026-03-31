@@ -12,7 +12,7 @@ import AI from './pages/AI'
 import Settings from './pages/Settings'
 import Login from './pages/Login'
 
-// Типы
+// Типы 
 interface User {
   id: string
   email: string
