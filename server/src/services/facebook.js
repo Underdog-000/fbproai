@@ -116,36 +116,54 @@ export async function syncAccountData(adAccountId) {
   });
   
   for (const adSet of adSets.data || []) {
-    // Получаем campaign из нашей БД
-    const campaign = await prisma.campaign.findUnique({
-      where: { campaignId: adSet.campaign_id },
+  const campaign = await prisma.campaign.findUnique({
+    where: { campaignId: adSet.campaign_id },
+  });
+
+  if (!campaign) continue;
+
+  try {
+    const rawBudget = adSet.daily_budget ?? adSet.lifetime_budget ?? null;
+    const parsedBudget =
+      rawBudget !== null && rawBudget !== undefined && rawBudget !== ''
+        ? parseFloat(rawBudget)
+        : null;
+
+    await prisma.adSet.upsert({
+      where: { adSetId: adSet.id },
+      update: {
+        name: adSet.name,
+        status: adSet.status,
+        budget: Number.isNaN(parsedBudget) ? null : parsedBudget,
+        bidStrategy: adSet.bid_strategy || null,
+        updatedTime: new Date(adSet.updated_time),
+      },
+      create: {
+        adAccountId,
+        campaignId: campaign.id,
+        adSetId: adSet.id,
+        name: adSet.name,
+        status: adSet.status,
+        budget: Number.isNaN(parsedBudget) ? null : parsedBudget,
+        bidStrategy: adSet.bid_strategy || null,
+        createdTime: new Date(adSet.created_time),
+        updatedTime: new Date(adSet.updated_time),
+      },
     });
-    
-    if (campaign) {
-      await prisma.adSet.upsert({
-        where: { adSetId: adSet.id },
-        update: {
-          name: adSet.name,
-          status: adSet.status,
-          budget: adSet.daily_budget || adSet.lifetime_budget || null,
-          bidStrategy: adSet.bid_strategy,
-          updatedTime: new Date(adSet.updated_time),
-        },
-        create: {
-          adAccountId,
-          campaignId: campaign.id,
-          adSetId: adSet.id,
-          name: adSet.name,
-          status: adSet.status,
-          budget: adSet.daily_budget || adSet.lifetime_budget || null,
-          bidStrategy: adSet.bid_strategy,
-          createdTime: new Date(adSet.created_time),
-          updatedTime: new Date(adSet.updated_time),
-        },
-      });
-      stats.adSets++;
-    }
+
+    stats.adSets++;
+  } catch (error) {
+    console.error('Failed to upsert adset:', {
+      adSetId: adSet.id,
+      name: adSet.name,
+      daily_budget: adSet.daily_budget,
+      lifetime_budget: adSet.lifetime_budget,
+      bid_strategy: adSet.bid_strategy,
+      error: error.message,
+    });
+    throw error;
   }
+}
   
   // Синхронизируем объявления
   const ads = await facebookApiRequest(`/${fbAccountId}/ads`, accessToken, {
