@@ -167,9 +167,9 @@ export async function syncAccountData(adAccountId) {
   
   // Синхронизируем объявления
   const ads = await facebookApiRequest(`/${fbAccountId}/ads`, accessToken, {
-    fields: 'id,name,adset_id,status,creative{url},created_time,updated_time',
-    limit: 100,
-  });
+  fields: 'id,name,adset_id,status,created_time,updated_time',
+  limit: 100,
+});
   
   for (const ad of ads.data || []) {
     // Получаем adset из нашей БД
@@ -179,24 +179,24 @@ export async function syncAccountData(adAccountId) {
     
     if (adSet) {
       await prisma.ad.upsert({
-        where: { adId: ad.id },
-        update: {
-          name: ad.name,
-          status: ad.status,
-          creativeUrl: ad.creative?.url || null,
-          updatedTime: new Date(ad.updated_time),
-        },
-        create: {
-          adAccountId,
-          adSetId: adSet.id,
-          adId: ad.id,
-          name: ad.name,
-          status: ad.status,
-          creativeUrl: ad.creative?.url || null,
-          createdTime: new Date(ad.created_time),
-          updatedTime: new Date(ad.updated_time),
-        },
-      });
+  where: { adId: ad.id },
+  update: {
+    name: ad.name,
+    status: ad.status,
+    creativeUrl: null,
+    updatedTime: new Date(ad.updated_time),
+  },
+  create: {
+    adAccountId,
+    adSetId: adSet.id,
+    adId: ad.id,
+    name: ad.name,
+    status: ad.status,
+    creativeUrl: null,
+    createdTime: new Date(ad.created_time),
+    updatedTime: new Date(ad.updated_time),
+  },
+});
       stats.ads++;
     }
   }
