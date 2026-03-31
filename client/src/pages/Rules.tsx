@@ -206,6 +206,7 @@ const [togglingRuleId, setTogglingRuleId] = useState<string | null>(null)
     )
   })}
 </div>
+  )}
       
       {/* Примеры правил */}
       <div className="bg-white rounded-lg shadow p-6">
