@@ -1,5 +1,6 @@
-import React, { useContext } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import React, { useContext, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -40,6 +41,8 @@ const MetricCard: React.FC<{
 
 const Dashboard: React.FC = () => {
   const api = useContext(ApiContext)
+  const queryClient = useQueryClient()
+const [isRefreshing, setIsRefreshing] = useState(false)
   
   // Запрос списка аккаунтов
   const { data: accountsData, isLoading: accountsLoading } = useQuery({
@@ -60,9 +63,30 @@ const Dashboard: React.FC = () => {
     },
     enabled: !!accountsData?.accounts?.[0]?.accountId,
   })
-  
+  const currentAccountId = accountsData?.accounts?.[0]?.accountId
   const isLoading = accountsLoading || statsLoading
   const metrics = statsData?.metrics
+
+  const handleRefresh = async () => {
+  if (!currentAccountId || isRefreshing) return
+
+  setIsRefreshing(true)
+
+  try {
+    await api.post(`/accounts/${currentAccountId}/sync`)
+    await queryClient.invalidateQueries({ queryKey: ['accounts'] })
+    await refetchStats()
+    alert('Данные дашборда обновлены')
+  } catch (error: any) {
+    const message =
+      error?.response?.data?.message ||
+      error?.message ||
+      'Ошибка обновления дашборда'
+    alert(message)
+  } finally {
+    setIsRefreshing(false)
+  }
+}
   
   return (
     <div className="space-y-6">
@@ -72,14 +96,14 @@ const Dashboard: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">Дашборд</h1>
           <p className="text-gray-600 mt-1">Обзор ваших рекламных кампаний</p>
         </div>
-        <button 
-          onClick={() => refetchStats()}
-          className="btn-secondary flex items-center space-x-2"
-          disabled={isLoading}
-        >
-          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          <span>Обновить</span>
-        </button>
+        <button
+  onClick={handleRefresh}
+  className="btn-secondary flex items-center space-x-2"
+  disabled={isLoading || isRefreshing || !currentAccountId}
+>
+  <RefreshCw className={`h-4 w-4 ${(isLoading || isRefreshing) ? 'animate-spin' : ''}`} />
+  <span>Обновить</span>
+</button>
       </div>
       
       {/* Аккаунты */}
@@ -87,7 +111,7 @@ const Dashboard: React.FC = () => {
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <p className="text-yellow-800">
             У вас пока нет подключенных аккаунтов. 
-            <a href="/accounts" className="font-medium underline ml-1">Подключить Facebook</a>
+            <Link to="/accounts" className="font-medium underline ml-1">Подключить Facebook</Link>
           </p>
         </div>
       )}
