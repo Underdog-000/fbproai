@@ -69,6 +69,69 @@ const [togglingRuleId, setTogglingRuleId] = useState<string | null>(null)
   setTogglingRuleId(ruleId)
   toggleRuleMutation.mutate(ruleId)
 }
+ const createRuleMutation = useMutation({
+  mutationFn: async (payload: any) => {
+    const response = await api.post(`/rules/${accountId}`, payload)
+    return response.data
+  },
+  onSuccess: async () => {
+    await queryClient.invalidateQueries({ queryKey: ['rules', accountId] })
+    alert('Правило создано')
+  },
+  onError: (error: any) => {
+    const message =
+      error?.response?.data?.message ||
+      error?.message ||
+      'Ошибка создания правила'
+    alert(message)
+  },
+}) 
+
+  const handleCreateRule = () => {
+  if (!accountId) {
+    alert('Сначала подключите аккаунт')
+    return
+  }
+
+  const name = window.prompt('Название правила', 'Выключить при CPL > 10')
+  if (!name) return
+
+  const entityType = window.prompt('Сущность: ad / adset / campaign', 'ad')
+  if (!entityType) return
+
+  const field = window.prompt('Поле условия', 'cpl')
+  if (!field) return
+
+  const operator = window.prompt('Оператор', 'greater_than')
+  if (!operator) return
+
+  const valueInput = window.prompt('Значение', '10')
+  if (valueInput === null || valueInput === '') return
+
+  const action = window.prompt('Действие: pause / enable', 'pause')
+  if (!action) return
+
+  const cooldownInput = window.prompt('Cooldown в минутах', '60')
+  const cooldownMinutes = cooldownInput ? parseInt(cooldownInput, 10) : 60
+
+  const numericValue = Number(valueInput)
+  const value = Number.isNaN(numericValue) ? valueInput : numericValue
+
+  const handleRefreshRules = async () => {
+  await refetch()
+  alert('Список правил обновлён')
+}
+
+  createRuleMutation.mutate({
+    name,
+    entityType,
+    field,
+    operator,
+    value,
+    action,
+    cooldownMinutes: Number.isNaN(cooldownMinutes) ? 60 : cooldownMinutes,
+  })
+}
   
   return (
     <div className="space-y-6">
@@ -80,14 +143,18 @@ const [togglingRuleId, setTogglingRuleId] = useState<string | null>(null)
         </div>
         <div className="flex space-x-3">
           <button 
-            onClick={() => refetch()}
+            onClick={handleRefreshRules}
             className="btn-secondary flex items-center space-x-2"
             disabled={isLoading}
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             <span>Обновить</span>
           </button>
-          <button className="btn-primary flex items-center space-x-2">
+          <button
+  className="btn-primary flex items-center space-x-2"
+  onClick={handleCreateRule}
+  disabled={!accountId || createRuleMutation.isPending}
+>
             <Plus className="h-4 w-4" />
             <span>Создать правило</span>
           </button>
@@ -119,7 +186,11 @@ const [togglingRuleId, setTogglingRuleId] = useState<string | null>(null)
               : 'Подключите аккаунт для создания правил'}
           </p>
           {accountId && (
-            <button className="btn-primary inline-flex items-center space-x-2">
+            <button
+  className="btn-primary inline-flex items-center space-x-2"
+  onClick={handleCreateRule}
+  disabled={createRuleMutation.isPending}
+>
               <Plus className="h-5 w-5" />
               <span>Создать правило</span>
             </button>
