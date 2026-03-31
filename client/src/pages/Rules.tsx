@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
-import React, { useContext } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import React, { useContext, useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { 
   Settings, 
   Loader2, 
@@ -15,6 +15,8 @@ import { ApiContext } from '../App'
 
 const Rules: React.FC = () => {
   const api = useContext(ApiContext)
+  const queryClient = useQueryClient()
+const [togglingRuleId, setTogglingRuleId] = useState<string | null>(null)
   
   // Запрос списка аккаунтов
   const { data: accountsData } = useQuery({
@@ -28,16 +30,42 @@ const Rules: React.FC = () => {
   // Запрос правил для первого аккаунта
   const accountId = accountsData?.accounts?.[0]?.accountId
   const { data: rulesData, isLoading, refetch } = useQuery({
-    queryKey: ['rules', accountId],
-    queryFn: async () => {
-      if (!accountId) return null
-      const response = await api.get(`/accounts/${accountId}`)
-      return response.data
-    },
-    enabled: !!accountId,
-  })
+  queryKey: ['rules', accountId],
+  queryFn: async () => {
+    if (!accountId) return null
+    const response = await api.get(`/rules/${accountId}`)
+    return response.data
+  },
+  enabled: !!accountId,
+})
   
-  const rules = rulesData?.account?.rules || []
+  const rules = rulesData?.rules || []
+
+  const toggleRuleMutation = useMutation({
+  mutationFn: async (ruleId: string) => {
+    const response = await api.patch(`/rules/${ruleId}/toggle`)
+    return response.data
+  },
+  onSuccess: async () => {
+    setTogglingRuleId(null)
+    await queryClient.invalidateQueries({ queryKey: ['rules', accountId] })
+    alert('Статус правила обновлён')
+  },
+  onError: (error: any) => {
+    setTogglingRuleId(null)
+    const message =
+      error?.response?.data?.message ||
+      error?.message ||
+      'Ошибка обновления правила'
+    alert(message)
+  },
+})
+
+  const handleToggleRule = (ruleId: string) => {
+  if (togglingRuleId) return
+  setTogglingRuleId(ruleId)
+  toggleRuleMutation.mutate(ruleId)
+}
   
   return (
     <div className="space-y-6">
@@ -96,70 +124,88 @@ const Rules: React.FC = () => {
         </div>
       ) : (
         <div className="grid gap-4">
-          {rules.map((rule: any) => (
-            <div key={rule.id} className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start space-x-4">
-                  <div className={`p-3 rounded-lg ${rule.isActive ? 'bg-green-100' : 'bg-gray-100'}`}>
-                    <Zap className={`h-6 w-6 ${rule.isActive ? 'text-green-600' : 'text-gray-400'}`} />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{rule.name}</h3>
-                    {rule.description && (
-                      <p className="text-sm text-gray-500 mt-1">{rule.description}</p>
-                    )}
-                    <div className="flex items-center space-x-4 mt-2">
-                      <div className="flex items-center text-sm text-gray-500">
-                        <Settings className="h-4 w-4 mr-1" />
-                        <span>Сущность: {rule.entityType}</span>
-                      </div>
-                      <div className="flex items-center text-sm text-gray-500">
-                        <Clock className="h-4 w-4 mr-1" />
-                        <span>Cooldown: {rule.cooldownMinutes} мин</span>
-                      </div>
-                      <div className={`flex items-center text-sm ${rule.isActive ? 'text-green-600' : 'text-gray-500'}`}>
-                        {rule.isActive ? (
-                          <Play className="h-4 w-4 mr-1" />
-                        ) : (
-                          <Pause className="h-4 w-4 mr-1" />
-                        )}
-                        <span>{rule.isActive ? 'Активно' : 'Приостановлено'}</span>
-                      </div>
-                    </div>
-                  </div>
+  {rules.map((rule: any) => {
+    const parsedCondition = (() => {
+      try {
+        return JSON.parse(rule.condition)
+      } catch {
+        return null
+      }
+    })()
+
+    return (
+      <div key={rule.id} className="bg-white rounded-lg shadow p-6">
+        <div className="flex items-start justify-between">
+          <div className="flex items-start space-x-4">
+            <div className={`p-3 rounded-lg ${rule.isActive ? 'bg-green-100' : 'bg-gray-100'}`}>
+              <Zap className={`h-6 w-6 ${rule.isActive ? 'text-green-600' : 'text-gray-400'}`} />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">{rule.name}</h3>
+              {rule.description && (
+                <p className="text-sm text-gray-500 mt-1">{rule.description}</p>
+              )}
+              <div className="flex items-center space-x-4 mt-2">
+                <div className="flex items-center text-sm text-gray-500">
+                  <Settings className="h-4 w-4 mr-1" />
+                  <span>Сущность: {rule.entityType}</span>
                 </div>
-                
-                <div className="flex items-center space-x-2">
-                  <button className="btn-secondary">
-                    {rule.isActive ? 'Пауза' : 'Запустить'}
-                  </button>
-                  <button className="btn-secondary">
-                    Редактировать
-                  </button>
+                <div className="flex items-center text-sm text-gray-500">
+                  <Clock className="h-4 w-4 mr-1" />
+                  <span>Cooldown: {rule.cooldownMinutes} мин</span>
                 </div>
-              </div>
-              
-              {/* Условие и действие */}
-              <div className="mt-4 pt-4 border-t border-gray-100">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Условие</p>
-                    <div className="bg-gray-50 rounded p-2 text-sm">
-                      {JSON.parse(rule.condition).field} {JSON.parse(rule.condition).operator} {JSON.parse(rule.condition).value}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Действие</p>
-                    <div className="bg-gray-50 rounded p-2 text-sm">
-                      {rule.action}
-                    </div>
-                  </div>
+                <div className={`flex items-center text-sm ${rule.isActive ? 'text-green-600' : 'text-gray-500'}`}>
+                  {rule.isActive ? (
+                    <Play className="h-4 w-4 mr-1" />
+                  ) : (
+                    <Pause className="h-4 w-4 mr-1" />
+                  )}
+                  <span>{rule.isActive ? 'Активно' : 'Приостановлено'}</span>
                 </div>
               </div>
             </div>
-          ))}
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <button
+              className="btn-secondary"
+              onClick={() => handleToggleRule(rule.id)}
+              disabled={togglingRuleId === rule.id}
+            >
+              {togglingRuleId === rule.id
+                ? 'Обновление...'
+                : rule.isActive
+                  ? 'Пауза'
+                  : 'Запустить'}
+            </button>
+            <button className="btn-secondary">
+              Редактировать
+            </button>
+          </div>
         </div>
-      )}
+
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-gray-500 mb-1">Условие</p>
+              <div className="bg-gray-50 rounded p-2 text-sm">
+                {parsedCondition
+                  ? `${parsedCondition.field} ${parsedCondition.operator} ${parsedCondition.value}`
+                  : 'Некорректное условие'}
+              </div>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500 mb-1">Действие</p>
+              <div className="bg-gray-50 rounded p-2 text-sm">
+                {rule.action}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  })}
+</div>
       
       {/* Примеры правил */}
       <div className="bg-white rounded-lg shadow p-6">
