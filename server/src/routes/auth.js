@@ -260,7 +260,7 @@ router.get('/facebook/callback', async (req, res) => {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 return res.redirect(
-  `${frontendUrl}/auth/callback?token=${token}&accounts=${accounts.length}`
+  `${frontendUrl}/auth/callback?token=${token}&accounts=${adAccounts.length}`
 );
     
   } catch (error) {
