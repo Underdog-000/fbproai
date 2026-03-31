@@ -98,9 +98,9 @@ router.post('/:accountId/sync', checkAccountOwnership, async (req, res) => {
   } catch (error) {
     console.error('Sync account error:', error);
     res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to sync account',
-    });
+  error: 'Internal server error',
+  message: error.message || 'Failed to sync account',
+})
   }
 });
 
