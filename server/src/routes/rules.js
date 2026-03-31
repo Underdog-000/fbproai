@@ -28,6 +28,55 @@ router.get('/:accountId', checkAccountOwnership, async (req, res) => {
   }
 });
 
+router.post('/:accountId', checkAccountOwnership, async (req, res) => {
+  try {
+    const {
+      name,
+      description,
+      entityType,
+      field,
+      operator,
+      value,
+      action,
+      cooldownMinutes,
+    } = req.body;
+
+    if (!name || !entityType || !field || !operator || value === undefined || !action) {
+      return res.status(400).json({
+        error: 'Bad request',
+        message: 'Missing required fields',
+      });
+    }
+
+    const rule = await prisma.rule.create({
+      data: {
+        adAccountId: req.adAccount.id,
+        name,
+        description: description || null,
+        entityType,
+        condition: JSON.stringify({
+          field,
+          operator,
+          value,
+        }),
+        action,
+        cooldownMinutes: cooldownMinutes || 60,
+        isActive: true,
+      },
+    });
+
+    res.json({
+      message: 'Rule created successfully',
+      rule,
+    });
+  } catch (error) {
+    console.error('Create rule error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to create rule',
+    });
+  }
+});
 /**
  * PATCH /api/rules/:ruleId/toggle
  * Переключить активность правила
