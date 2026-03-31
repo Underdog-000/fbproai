@@ -6,7 +6,7 @@ import axios from 'axios';
 import { PrismaClient } from '@prisma/client';
 import config from '../config/index.js';
 import { encrypt } from '../utils/crypto.js';
-import { generateToken } from '../middleware/auth.js';
+import { authenticate, generateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -133,7 +133,23 @@ router.post('/login', async (req, res) => {
     });
   }
 });
-
+/**
+ * GET /api/auth/me
+ * Возвращает текущего пользователя по JWT
+ */
+router.get('/me', authenticate, async (req, res) => {
+  try {
+    res.json({
+      user: req.user,
+    });
+  } catch (error) {
+    console.error('Get current user error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to get current user',
+    });
+  }
+});
 /**
  * GET /api/auth/facebook
  * Начало Facebook OAuth flow
