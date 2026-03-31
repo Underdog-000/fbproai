@@ -259,8 +259,8 @@ router.get('/facebook/callback', async (req, res) => {
     // Редирект на frontend с токеном
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
-return res.redirect(
-  `${frontendUrl}/auth/callback?token=${token}&accounts=${adAccounts.length}`
+    return res.redirect(
+  `${frontendUrl}/dashboard?token=${token}&accounts=${adAccounts.length}`
 );
     
   } catch (error) {
