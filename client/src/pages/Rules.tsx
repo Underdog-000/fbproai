@@ -165,7 +165,7 @@ const Rules: React.FC = () => {
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Примеры правил</h3>
         <div className="space-y-4">
           <div className="border border-gray-200 rounded-lg p-4">
-            <h4 className="font-medium text-gray-900">Выключить при CPL > $10</h4>
+            <h4 className="font-medium text-gray-900">Выключить при CPL &gt; $10</h4>
             <p className="text-sm text-gray-500 mt-1">
               Автоматически приостанавливает объявление, если стоимость лида превышает $10
             </p>
@@ -174,7 +174,7 @@ const Rules: React.FC = () => {
             </div>
           </div>
           <div className="border border-gray-200 rounded-lg p-4">
-            <h4 className="font-medium text-gray-900">Выключить при spend > $50 без лидов</h4>
+            <h4 className="font-medium text-gray-900">Выключить при spend &gt; $50 без лидов</h4>
             <p className="text-sm text-gray-500 mt-1">
               Приостанавливает объявление, если потрачено больше $50 и нет лидов
             </p>
