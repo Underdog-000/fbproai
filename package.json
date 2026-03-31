@@ -10,7 +10,8 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:client": "cd client && npm run dev",
     "dev:server": "cd server && npm run dev",
-    "build": "npm run build:client",
+    "prisma:generate": "cd server && npx prisma generate",
+    "build": "npm run prisma:generate && npm run build:client",
     "build:client": "cd client && npm run build",
     "start": "cd server && npm start"
   },
