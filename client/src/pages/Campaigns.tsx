@@ -1,5 +1,6 @@
-import React, { useContext } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import React, { useContext, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { 
   Megaphone, 
   Loader2, 
@@ -14,6 +15,8 @@ import { ApiContext } from '../App'
 
 const Campaigns: React.FC = () => {
   const api = useContext(ApiContext)
+  const queryClient = useQueryClient()
+const [isRefreshing, setIsRefreshing] = useState(false)
   
   // Запрос списка аккаунтов
   const { data: accountsData } = useQuery({
@@ -37,6 +40,26 @@ const Campaigns: React.FC = () => {
   })
   
   const campaigns = accountData?.account?.campaigns || []
+  const handleRefresh = async () => {
+  if (!accountId || isRefreshing) return
+
+  setIsRefreshing(true)
+
+  try {
+    await api.post(`/accounts/${accountId}/sync`)
+    await queryClient.invalidateQueries({ queryKey: ['accounts'] })
+    await refetch()
+    alert('Кампании обновлены')
+  } catch (error: any) {
+    const message =
+      error?.response?.data?.message ||
+      error?.message ||
+      'Ошибка обновления кампаний'
+    alert(message)
+  } finally {
+    setIsRefreshing(false)
+  }
+}
   
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; color: string }> = {
@@ -56,14 +79,14 @@ const Campaigns: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">Кампании</h1>
           <p className="text-gray-600 mt-1">Просмотр рекламных кампаний</p>
         </div>
-        <button 
-          onClick={() => refetch()}
-          className="btn-secondary flex items-center space-x-2"
-          disabled={isLoading}
-        >
-          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          <span>Обновить</span>
-        </button>
+        <button
+  onClick={handleRefresh}
+  className="btn-secondary flex items-center space-x-2"
+  disabled={isLoading || isRefreshing || !accountId}
+>
+  <RefreshCw className={`h-4 w-4 ${(isLoading || isRefreshing) ? 'animate-spin' : ''}`} />
+  <span>Обновить</span>
+</button>
       </div>
       
       {/* Информация об аккаунте */}
