@@ -14,14 +14,50 @@ import {
   Target,
   DollarSign,
   Percent,
+  X,
+  CheckCircle2,
 } from 'lucide-react'
 import { ApiContext } from '../App'
+
+type Notice = {
+  type: 'success' | 'error'
+  message: string
+} | null
+
+const defaultTemplateForm = {
+  name: 'Bruno / ROI 50 / pause adset',
+  offerName: 'Bruno',
+  payout: '100',
+  approveRate: '20',
+  targetRoi: '50',
+  actionScope: 'adset',
+  actionType: 'pause',
+  cooldownMinutes: '60',
+}
 
 const Rules: React.FC = () => {
   const api = useContext(ApiContext)
   const queryClient = useQueryClient()
 
   const [togglingRuleId, setTogglingRuleId] = useState<string | null>(null)
+  const [notice, setNotice] = useState<Notice>(null)
+
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [templateForm, setTemplateForm] = useState(defaultTemplateForm)
+
+  const [isApplyModalOpen, setIsApplyModalOpen] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null)
+  const [applyForm, setApplyForm] = useState({
+    adAccountId: '',
+    campaignId: '',
+    campaignName: '',
+  })
+
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; campaignName?: string } | null>(null)
+
+  const showNotice = (type: 'success' | 'error', message: string) => {
+    setNotice({ type, message })
+  }
 
   const { data: accountsData, isLoading: accountsLoading } = useQuery({
     queryKey: ['accounts'],
@@ -68,14 +104,16 @@ const Rules: React.FC = () => {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['rule-templates'] })
-      alert('Шаблон создан')
+      setIsCreateModalOpen(false)
+      setTemplateForm(defaultTemplateForm)
+      showNotice('success', 'Шаблон создан')
     },
     onError: (error: any) => {
       const message =
         error?.response?.data?.message ||
         error?.message ||
         'Ошибка создания шаблона'
-      alert(message)
+      showNotice('error', message)
     },
   })
 
@@ -92,14 +130,17 @@ const Rules: React.FC = () => {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['campaign-rules'] })
-      alert('Шаблон применён к кампании')
+      setIsApplyModalOpen(false)
+      setSelectedTemplate(null)
+      setApplyForm({ adAccountId: '', campaignId: '', campaignName: '' })
+      showNotice('success', 'Шаблон применён к кампании')
     },
     onError: (error: any) => {
       const message =
         error?.response?.data?.message ||
         error?.message ||
         'Ошибка применения шаблона'
-      alert(message)
+      showNotice('error', message)
     },
   })
 
@@ -111,7 +152,7 @@ const Rules: React.FC = () => {
     onSuccess: async () => {
       setTogglingRuleId(null)
       await queryClient.invalidateQueries({ queryKey: ['campaign-rules'] })
-      alert('Статус campaign rule обновлён')
+      showNotice('success', 'Статус campaign rule обновлён')
     },
     onError: (error: any) => {
       setTogglingRuleId(null)
@@ -119,7 +160,7 @@ const Rules: React.FC = () => {
         error?.response?.data?.message ||
         error?.message ||
         'Ошибка обновления campaign rule'
-      alert(message)
+      showNotice('error', message)
     },
   })
 
@@ -130,86 +171,86 @@ const Rules: React.FC = () => {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['campaign-rules'] })
-      alert('Campaign rule удалён')
+      setDeleteTarget(null)
+      showNotice('success', 'Campaign rule удалён')
     },
     onError: (error: any) => {
       const message =
         error?.response?.data?.message ||
         error?.message ||
         'Ошибка удаления campaign rule'
-      alert(message)
+      showNotice('error', message)
     },
   })
 
   const handleRefresh = async () => {
     await Promise.all([refetchTemplates(), refetchCampaignRules()])
-    alert('Данные обновлены')
+    showNotice('success', 'Данные обновлены')
   }
 
-  const handleCreateTemplate = () => {
-    const name = window.prompt('Название шаблона', 'Bruno / ROI 50 / pause adset')
-    if (!name) return
+  const openCreateModal = () => {
+    setNotice(null)
+    setTemplateForm(defaultTemplateForm)
+    setIsCreateModalOpen(true)
+  }
 
-    const offerName = window.prompt('Оффер', 'Bruno')
-    if (!offerName) return
-
-    const payoutInput = window.prompt('Ставка / payout', '100')
-    if (payoutInput === null || payoutInput === '') return
-
-    const approveRateInput = window.prompt('Аппрув %', '20')
-    if (approveRateInput === null || approveRateInput === '') return
-
-    const targetRoiInput = window.prompt('Целевой ROI %', '50')
-    if (targetRoiInput === null || targetRoiInput === '') return
-
-    const actionScope = window.prompt('Scope: ad / adset', 'adset')
-    if (!actionScope) return
-
-    const actionType = window.prompt('Action: pause / enable', 'pause')
-    if (!actionType) return
-
-    const cooldownInput = window.prompt('Cooldown в минутах', '60')
-    const cooldownMinutes = cooldownInput ? parseInt(cooldownInput, 10) : 60
+  const submitCreateTemplate = () => {
+    if (
+      !templateForm.name ||
+      !templateForm.offerName ||
+      !templateForm.payout ||
+      !templateForm.approveRate ||
+      !templateForm.targetRoi ||
+      !templateForm.actionScope ||
+      !templateForm.actionType
+    ) {
+      showNotice('error', 'Заполните все обязательные поля шаблона')
+      return
+    }
 
     createTemplateMutation.mutate({
-      name,
-      offerName,
-      payout: Number(payoutInput),
-      approveRate: Number(approveRateInput),
-      targetRoi: Number(targetRoiInput),
-      actionScope,
-      actionType,
-      cooldownMinutes: Number.isNaN(cooldownMinutes) ? 60 : cooldownMinutes,
+      name: templateForm.name,
+      offerName: templateForm.offerName,
+      payout: Number(templateForm.payout),
+      approveRate: Number(templateForm.approveRate),
+      targetRoi: Number(templateForm.targetRoi),
+      actionScope: templateForm.actionScope,
+      actionType: templateForm.actionType,
+      cooldownMinutes: Number(templateForm.cooldownMinutes) || 60,
       sourceType: 'manual',
     })
   }
 
   const handleApplyTemplate = (template: any) => {
     if (!allAccounts.length) {
-      alert('Сначала подключите рекламный аккаунт Facebook')
+      showNotice('error', 'Сначала подключите рекламный аккаунт Facebook')
       return
     }
 
-    const selectedAccountId = window.prompt(
-      `ID аккаунта в системе (adAccount.id). Доступные:\n${allAccounts
-        .map((a: any) => `${a.id} | ${a.name} | ${a.accountId}`)
-        .join('\n')}`,
-      allAccounts[0]?.id || ''
-    )
-    if (!selectedAccountId) return
+    setNotice(null)
+    setSelectedTemplate(template)
+    setApplyForm({
+      adAccountId: allAccounts[0]?.id || '',
+      campaignId: '',
+      campaignName: '',
+    })
+    setIsApplyModalOpen(true)
+  }
 
-    const campaignId = window.prompt('Facebook campaignId', '')
-    if (!campaignId) return
+  const submitApplyTemplate = () => {
+    if (!selectedTemplate) return
 
-    const campaignName = window.prompt('Название кампании', '')
-    if (!campaignName) return
+    if (!applyForm.adAccountId || !applyForm.campaignId || !applyForm.campaignName) {
+      showNotice('error', 'Заполните аккаунт, campaignId и название кампании')
+      return
+    }
 
     applyTemplateMutation.mutate({
-      templateId: template.id,
+      templateId: selectedTemplate.id,
       payload: {
-        adAccountId: selectedAccountId,
-        campaignId,
-        campaignName,
+        adAccountId: applyForm.adAccountId,
+        campaignId: applyForm.campaignId,
+        campaignName: applyForm.campaignName,
       },
     })
   }
@@ -221,13 +262,7 @@ const Rules: React.FC = () => {
   }
 
   const handleDeleteCampaignRule = (ruleId: string, campaignName?: string) => {
-    const confirmed = window.confirm(
-      `Удалить campaign rule${campaignName ? ` для "${campaignName}"` : ''}?`
-    )
-
-    if (confirmed) {
-      deleteCampaignRuleMutation.mutate(ruleId)
-    }
+    setDeleteTarget({ id: ruleId, campaignName })
   }
 
   const isLoading = accountsLoading || templatesLoading || campaignRulesLoading
@@ -251,7 +286,7 @@ const Rules: React.FC = () => {
 
           <button
             className="btn-primary flex items-center space-x-2"
-            onClick={handleCreateTemplate}
+            onClick={openCreateModal}
             disabled={createTemplateMutation.isPending}
           >
             <Plus className="h-4 w-4" />
@@ -259,6 +294,24 @@ const Rules: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {notice && (
+        <div
+          className={`rounded-lg border p-4 flex items-start justify-between gap-4 ${
+            notice.type === 'success'
+              ? 'bg-green-50 border-green-200 text-green-800'
+              : 'bg-red-50 border-red-200 text-red-800'
+          }`}
+        >
+          <div className="flex items-start gap-2">
+            <CheckCircle2 className="h-5 w-5 mt-0.5" />
+            <p>{notice.message}</p>
+          </div>
+          <button onClick={() => setNotice(null)} className="opacity-70 hover:opacity-100">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {allAccounts.length === 0 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -409,6 +462,238 @@ const Rules: React.FC = () => {
             )}
           </div>
         </>
+      )}
+
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Создать шаблон</h3>
+                <p className="text-sm text-gray-500 mt-1">Заполните ROI-параметры шаблона</p>
+              </div>
+              <button
+                onClick={() => setIsCreateModalOpen(false)}
+                disabled={createTemplateMutation.isPending}
+                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-4 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Название шаблона</label>
+                <input
+                  value={templateForm.name}
+                  onChange={(e) => setTemplateForm((prev) => ({ ...prev, name: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Оффер</label>
+                <input
+                  value={templateForm.offerName}
+                  onChange={(e) => setTemplateForm((prev) => ({ ...prev, offerName: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Payout</label>
+                <input
+                  value={templateForm.payout}
+                  onChange={(e) => setTemplateForm((prev) => ({ ...prev, payout: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Approve %</label>
+                <input
+                  value={templateForm.approveRate}
+                  onChange={(e) => setTemplateForm((prev) => ({ ...prev, approveRate: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Target ROI %</label>
+                <input
+                  value={templateForm.targetRoi}
+                  onChange={(e) => setTemplateForm((prev) => ({ ...prev, targetRoi: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Scope</label>
+                <select
+                  value={templateForm.actionScope}
+                  onChange={(e) => setTemplateForm((prev) => ({ ...prev, actionScope: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white"
+                >
+                  <option value="ad">ad</option>
+                  <option value="adset">adset</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Action</label>
+                <select
+                  value={templateForm.actionType}
+                  onChange={(e) => setTemplateForm((prev) => ({ ...prev, actionType: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white"
+                >
+                  <option value="pause">pause</option>
+                  <option value="enable">enable</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Cooldown, мин</label>
+                <input
+                  value={templateForm.cooldownMinutes}
+                  onChange={(e) => setTemplateForm((prev) => ({ ...prev, cooldownMinutes: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+              <button
+                onClick={() => setIsCreateModalOpen(false)}
+                disabled={createTemplateMutation.isPending}
+                className="btn-secondary"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={submitCreateTemplate}
+                disabled={createTemplateMutation.isPending}
+                className="btn-primary flex items-center space-x-2"
+              >
+                {createTemplateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                <span>Создать шаблон</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isApplyModalOpen && selectedTemplate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Применить шаблон</h3>
+                <p className="text-sm text-gray-500 mt-1">Шаблон: {selectedTemplate.name}</p>
+              </div>
+              <button
+                onClick={() => setIsApplyModalOpen(false)}
+                disabled={applyTemplateMutation.isPending}
+                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Рекламный аккаунт</label>
+                <select
+                  value={applyForm.adAccountId}
+                  onChange={(e) => setApplyForm((prev) => ({ ...prev, adAccountId: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white"
+                >
+                  {allAccounts.map((account: any) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name} ({account.accountId})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Facebook campaignId</label>
+                <input
+                  value={applyForm.campaignId}
+                  onChange={(e) => setApplyForm((prev) => ({ ...prev, campaignId: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Название кампании</label>
+                <input
+                  value={applyForm.campaignName}
+                  onChange={(e) => setApplyForm((prev) => ({ ...prev, campaignName: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+              <button
+                onClick={() => setIsApplyModalOpen(false)}
+                disabled={applyTemplateMutation.isPending}
+                className="btn-secondary"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={submitApplyTemplate}
+                disabled={applyTemplateMutation.isPending}
+                className="btn-primary flex items-center space-x-2"
+              >
+                {applyTemplateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                <span>Применить шаблон</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+              <h3 className="text-lg font-semibold text-gray-900">Удалить правило</h3>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleteCampaignRuleMutation.isPending}
+                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-4">
+              <p className="text-sm text-gray-600">
+                Удалить campaign rule{deleteTarget.campaignName ? ` для «${deleteTarget.campaignName}»` : ''}?
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleteCampaignRuleMutation.isPending}
+                className="btn-secondary"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={() => deleteCampaignRuleMutation.mutate(deleteTarget.id)}
+                disabled={deleteCampaignRuleMutation.isPending}
+                className="btn-danger flex items-center space-x-2"
+              >
+                {deleteCampaignRuleMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                <span>Удалить</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
