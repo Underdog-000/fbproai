@@ -173,18 +173,66 @@ router.get('/:accountId/stats', checkAccountOwnership, async (req, res) => {
  */
 router.delete('/:accountId', checkAccountOwnership, async (req, res) => {
   try {
-    await prisma.adAccount.delete({
-      where: { id: req.adAccount.id },
-    });
-    
-    res.json({ message: 'Account deleted successfully' });
+    const adAccountId = req.adAccount.id
+    const facebookConnectionId = req.adAccount.facebookConnectionId
+
+    await prisma.$transaction(async (tx) => {
+      await tx.ruleExecution.deleteMany({
+        where: { adAccountId },
+      })
+
+      await tx.rule.deleteMany({
+        where: { adAccountId },
+      })
+
+      await tx.aiRecommendation.deleteMany({
+        where: { adAccountId },
+      })
+
+      await tx.aiAction.deleteMany({
+        where: { adAccountId },
+      })
+
+      await tx.approveData.deleteMany({
+        where: { adAccountId },
+      })
+
+      await tx.metricSnapshot.deleteMany({
+        where: { adAccountId },
+      })
+
+      await tx.ad.deleteMany({
+        where: { adAccountId },
+      })
+
+      await tx.adSet.deleteMany({
+        where: { adAccountId },
+      })
+
+      await tx.campaign.deleteMany({
+        where: { adAccountId },
+      })
+
+      await tx.adAccount.delete({
+        where: { id: adAccountId },
+      })
+    })
+
+    const remainingAccounts = await prisma.adAccount.count({
+      where: { facebookConnectionId },
+    })
+
+    res.json({
+      message: 'Account deleted successfully',
+      deletedAccountId: req.adAccount.accountId,
+      connectionEmpty: remainingAccounts === 0,
+      remainingAccounts,
+    })
   } catch (error) {
-    console.error('Delete account error:', error);
+    console.error('Delete account error:', error)
     res.status(500).json({
       error: 'Internal server error',
-      message: 'Failed to delete account',
-    });
+      message: error.message || 'Failed to delete account',
+    })
   }
-});
-
-export default router;
+})
