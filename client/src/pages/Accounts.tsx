@@ -21,8 +21,8 @@ const Accounts: React.FC = () => {
   const queryClient = useQueryClient()
 
   const [syncingId, setSyncingId] = useState<string | null>(null)
-  const [isSyncingAll, setIsSyncingAll] = useState(false)
   const [syncingConnectionId, setSyncingConnectionId] = useState<string | null>(null)
+  const [isSyncingAll, setIsSyncingAll] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['accounts'],
@@ -59,7 +59,7 @@ const Accounts: React.FC = () => {
     },
   })
 
-    const deleteConnectionMutation = useMutation({
+  const deleteConnectionMutation = useMutation({
     mutationFn: async (connectionId: string) => {
       const response = await api.delete(`/accounts/connections/${connectionId}`)
       return response.data
@@ -76,7 +76,7 @@ const Accounts: React.FC = () => {
       alert(message)
     },
   })
-  
+
   const deleteMutation = useMutation({
     mutationFn: async (accountId: string) => {
       const response = await api.delete(`/accounts/${accountId}`)
@@ -111,40 +111,40 @@ const Accounts: React.FC = () => {
   }
 
   const handleSyncConnection = async (connectionId: string, adAccounts: any[]) => {
-  if (!adAccounts.length || syncingConnectionId === connectionId) return
+    if (!adAccounts.length || syncingConnectionId === connectionId) return
 
-  setSyncingConnectionId(connectionId)
+    setSyncingConnectionId(connectionId)
 
-  let successCount = 0
-  let failedCount = 0
-  const failedAccounts: string[] = []
+    let successCount = 0
+    let failedCount = 0
+    const failedAccounts: string[] = []
 
-  try {
-    for (const account of adAccounts) {
-      try {
-        await api.post(`/accounts/${account.accountId}/sync`)
-        successCount++
-      } catch (error) {
-        failedCount++
-        failedAccounts.push(account.name || account.accountId)
-        console.error(`Failed to sync account ${account.accountId}:`, error)
+    try {
+      for (const account of adAccounts) {
+        try {
+          await api.post(`/accounts/${account.accountId}/sync`)
+          successCount++
+        } catch (error) {
+          failedCount++
+          failedAccounts.push(account.name || account.accountId)
+          console.error(`Failed to sync account ${account.accountId}:`, error)
+        }
       }
-    }
 
-    await queryClient.invalidateQueries({ queryKey: ['accounts'] })
+      await queryClient.invalidateQueries({ queryKey: ['accounts'] })
 
-    if (failedCount === 0) {
-      alert(`Синхронизация подключения завершена. Успешно: ${successCount}`)
-    } else {
-      alert(
-        `Синхронизация подключения завершена.\nУспешно: ${successCount}\nС ошибкой: ${failedCount}\n\nПроблемные аккаунты:\n${failedAccounts.join('\n')}`
-      )
+      if (failedCount === 0) {
+        alert(`Синхронизация подключения завершена. Успешно: ${successCount}`)
+      } else {
+        alert(
+          `Синхронизация подключения завершена.\nУспешно: ${successCount}\nС ошибкой: ${failedCount}\n\nПроблемные аккаунты:\n${failedAccounts.join('\n')}`
+        )
+      }
+    } finally {
+      setSyncingConnectionId(null)
     }
-  } finally {
-    setSyncingConnectionId(null)
   }
-}
-  
+
   const handleSyncAll = async () => {
     if (!allAccounts.length || isSyncingAll) return
 
@@ -180,7 +180,7 @@ const Accounts: React.FC = () => {
     }
   }
 
-    const handleDeleteConnection = (
+  const handleDeleteConnection = (
     connectionId: string,
     connectionName?: string
   ) => {
@@ -192,7 +192,7 @@ const Accounts: React.FC = () => {
       deleteConnectionMutation.mutate(connectionId)
     }
   }
-  
+
   const handleDeleteAccount = (accountId: string, accountName?: string) => {
     const confirmed = window.confirm(
       `Удалить рекламный аккаунт${accountName ? ` "${accountName}"` : ''}?`
@@ -337,39 +337,40 @@ const Accounts: React.FC = () => {
                     </div>
 
                     <div className="flex flex-col items-end gap-3">
-  <div className="text-sm text-gray-500 whitespace-nowrap">
-    Подключено:{' '}
-    {connection.connectedAt
-      ? new Date(connection.connectedAt).toLocaleDateString('ru-RU')
-      : '—'}
-  </div>
+                      <div className="text-sm text-gray-500 whitespace-nowrap">
+                        Подключено:{' '}
+                        {connection.connectedAt
+                          ? new Date(connection.connectedAt).toLocaleDateString('ru-RU')
+                          : '—'}
+                      </div>
 
-  <div className="flex items-center gap-2">
-    <button
-      onClick={() => handleSyncConnection(connection.id, adAccounts)}
-      disabled={syncingConnectionId === connection.id || adAccounts.length === 0}
-      className="btn-secondary flex items-center space-x-2"
-    >
-      {syncingConnectionId === connection.id ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
-      ) : (
-        <RefreshCw className="h-4 w-4" />
-      )}
-      <span>Синхронизировать подключение</span>
-    </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleSyncConnection(connection.id, adAccounts)}
+                          disabled={syncingConnectionId === connection.id || adAccounts.length === 0}
+                          className="btn-secondary flex items-center space-x-2"
+                        >
+                          {syncingConnectionId === connection.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" />
+                          )}
+                          <span>Синхронизировать подключение</span>
+                        </button>
 
-    <button
-      onClick={() =>
-        handleDeleteConnection(connection.id, connection.facebookName)
-      }
-      disabled={deleteConnectionMutation.isPending}
-      className="btn-danger flex items-center space-x-2"
-    >
-      <Trash2 className="h-4 w-4" />
-      <span>Удалить подключение</span>
-    </button>
-  </div>
-</div>
+                        <button
+                          onClick={() =>
+                            handleDeleteConnection(connection.id, connection.facebookName)
+                          }
+                          disabled={deleteConnectionMutation.isPending}
+                          className="btn-danger flex items-center space-x-2"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span>Удалить подключение</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="p-6 space-y-4">
@@ -480,8 +481,9 @@ const Accounts: React.FC = () => {
         <ul className="text-sm text-blue-800 space-y-1">
           <li>• Один пользователь сервиса может подключить несколько Facebook-профилей</li>
           <li>• У каждого подключения может быть несколько рекламных аккаунтов</li>
-          <li>• Удаление аккаунта сейчас удаляет только один рекламный аккаунт</li>
-          <li>• Удаление подключения целиком добавим следующим шагом</li>
+          <li>• Можно синхронизировать один аккаунт, одно подключение или все аккаунты сразу</li>
+          <li>• Удаление аккаунта удаляет только один рекламный аккаунт</li>
+          <li>• Удаление подключения удаляет весь профиль вместе с его рекламными аккаунтами</li>
         </ul>
       </div>
     </div>
