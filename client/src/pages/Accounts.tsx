@@ -58,6 +58,24 @@ const Accounts: React.FC = () => {
     },
   })
 
+    const deleteConnectionMutation = useMutation({
+    mutationFn: async (connectionId: string) => {
+      const response = await api.delete(`/accounts/connections/${connectionId}`)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts'] })
+      alert('Подключение удалено')
+    },
+    onError: (error: any) => {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Ошибка удаления подключения'
+      alert(message)
+    },
+  })
+  
   const deleteMutation = useMutation({
     mutationFn: async (accountId: string) => {
       const response = await api.delete(`/accounts/${accountId}`)
@@ -126,6 +144,19 @@ const Accounts: React.FC = () => {
     }
   }
 
+    const handleDeleteConnection = (
+    connectionId: string,
+    connectionName?: string
+  ) => {
+    const confirmed = window.confirm(
+      `Удалить подключение${connectionName ? ` "${connectionName}"` : ''} целиком вместе со всеми рекламными аккаунтами?`
+    )
+
+    if (confirmed) {
+      deleteConnectionMutation.mutate(connectionId)
+    }
+  }
+  
   const handleDeleteAccount = (accountId: string, accountName?: string) => {
     const confirmed = window.confirm(
       `Удалить рекламный аккаунт${accountName ? ` "${accountName}"` : ''}?`
@@ -269,12 +300,25 @@ const Accounts: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="text-sm text-gray-500 whitespace-nowrap">
-                      Подключено:{' '}
-                      {connection.connectedAt
-                        ? new Date(connection.connectedAt).toLocaleDateString('ru-RU')
-                        : '—'}
-                    </div>
+                    <div className="flex flex-col items-end gap-3">
+  <div className="text-sm text-gray-500 whitespace-nowrap">
+    Подключено:{' '}
+    {connection.connectedAt
+      ? new Date(connection.connectedAt).toLocaleDateString('ru-RU')
+      : '—'}
+  </div>
+
+  <button
+    onClick={() =>
+      handleDeleteConnection(connection.id, connection.facebookName)
+    }
+    disabled={deleteConnectionMutation.isPending}
+    className="btn-danger flex items-center space-x-2"
+  >
+    <Trash2 className="h-4 w-4" />
+    <span>Удалить подключение</span>
+  </button>
+</div>
                   </div>
                 </div>
 
