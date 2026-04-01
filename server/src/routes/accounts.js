@@ -31,7 +31,6 @@ router.get('/', async (req, res) => {
         updatedAt: true,
         _count: {
   select: {
-    campaigns: true,
     rules: true,
   },
 },
