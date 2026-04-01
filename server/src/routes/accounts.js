@@ -14,7 +14,7 @@ router.use(authenticate);
 
 /**
  * GET /api/accounts
- * Получить список аккаунтов пользователя
+ * Получить список Facebook-подключений пользователя и их рекламных аккаунтов
  */
 router.get('/', async (req, res) => {
   try {
@@ -86,7 +86,7 @@ router.get('/:accountId', checkAccountOwnership, async (req, res) => {
 router.post('/:accountId/sync', checkAccountOwnership, async (req, res) => {
   try {
     const result = await syncAccountData(req.adAccount.id);
-    
+
     res.json({
       message: 'Account synced successfully',
       stats: result,
@@ -94,9 +94,9 @@ router.post('/:accountId/sync', checkAccountOwnership, async (req, res) => {
   } catch (error) {
     console.error('Sync account error:', error);
     res.status(500).json({
-  error: 'Internal server error',
-  message: error.message || 'Failed to sync account',
-})
+      error: 'Internal server error',
+      message: error.message || 'Failed to sync account',
+    });
   }
 });
 
@@ -108,8 +108,8 @@ router.get('/:accountId/stats', checkAccountOwnership, async (req, res) => {
   try {
     const { days = 7 } = req.query;
     const startDate = new Date();
-    startDate.setDate(startDate.getDate() - parseInt(days));
-    
+    startDate.setDate(startDate.getDate() - parseInt(days, 10));
+
     const metrics = await prisma.metricSnapshot.findMany({
       where: {
         adAccountId: req.adAccount.id,
@@ -118,41 +118,49 @@ router.get('/:accountId/stats', checkAccountOwnership, async (req, res) => {
       },
       orderBy: { date: 'asc' },
     });
-    
-    // Агрегируем данные
-    const aggregated = metrics.reduce((acc, m) => {
-      acc.totalSpend += m.spend;
-      acc.totalImpressions += m.impressions;
-      acc.totalClicks += m.clicks;
-      acc.totalLeads += m.leads;
-      acc.totalConversions += m.conversions;
-      acc.totalRevenue += m.revenue;
-      acc.totalApproves += m.approves;
-      return acc;
-    }, {
-      totalSpend: 0,
-      totalImpressions: 0,
-      totalClicks: 0,
-      totalLeads: 0,
-      totalConversions: 0,
-      totalRevenue: 0,
-      totalApproves: 0,
-    });
-    
-    // Вычисляем производные метрики
-    aggregated.avgCTR = aggregated.totalImpressions > 0 
-      ? (aggregated.totalClicks / aggregated.totalImpressions) * 100 
-      : 0;
-    aggregated.avgCPC = aggregated.totalClicks > 0 
-      ? aggregated.totalSpend / aggregated.totalClicks 
-      : 0;
-    aggregated.avgCPL = aggregated.totalLeads > 0 
-      ? aggregated.totalSpend / aggregated.totalLeads 
-      : 0;
-    aggregated.roas = aggregated.totalSpend > 0 
-      ? aggregated.totalRevenue / aggregated.totalSpend 
-      : 0;
-    
+
+    const aggregated = metrics.reduce(
+      (acc, m) => {
+        acc.totalSpend += m.spend;
+        acc.totalImpressions += m.impressions;
+        acc.totalClicks += m.clicks;
+        acc.totalLeads += m.leads;
+        acc.totalConversions += m.conversions;
+        acc.totalRevenue += m.revenue;
+        acc.totalApproves += m.approves;
+        return acc;
+      },
+      {
+        totalSpend: 0,
+        totalImpressions: 0,
+        totalClicks: 0,
+        totalLeads: 0,
+        totalConversions: 0,
+        totalRevenue: 0,
+        totalApproves: 0,
+      }
+    );
+
+    aggregated.avgCTR =
+      aggregated.totalImpressions > 0
+        ? (aggregated.totalClicks / aggregated.totalImpressions) * 100
+        : 0;
+
+    aggregated.avgCPC =
+      aggregated.totalClicks > 0
+        ? aggregated.totalSpend / aggregated.totalClicks
+        : 0;
+
+    aggregated.avgCPL =
+      aggregated.totalLeads > 0
+        ? aggregated.totalSpend / aggregated.totalLeads
+        : 0;
+
+    aggregated.roas =
+      aggregated.totalSpend > 0
+        ? aggregated.totalRevenue / aggregated.totalSpend
+        : 0;
+
     res.json({
       period: `${days} days`,
       metrics: aggregated,
@@ -169,70 +177,72 @@ router.get('/:accountId/stats', checkAccountOwnership, async (req, res) => {
 
 /**
  * DELETE /api/accounts/:accountId
- * Удалить аккаунт
+ * Удалить один рекламный аккаунт и все связанные данные
  */
 router.delete('/:accountId', checkAccountOwnership, async (req, res) => {
   try {
-    const adAccountId = req.adAccount.id
-    const facebookConnectionId = req.adAccount.facebookConnectionId
+    const adAccountId = req.adAccount.id;
+    const facebookConnectionId = req.adAccount.facebookConnectionId;
 
     await prisma.$transaction(async (tx) => {
       await tx.ruleExecution.deleteMany({
         where: { adAccountId },
-      })
+      });
 
       await tx.rule.deleteMany({
         where: { adAccountId },
-      })
+      });
 
       await tx.aiRecommendation.deleteMany({
         where: { adAccountId },
-      })
+      });
 
       await tx.aiAction.deleteMany({
         where: { adAccountId },
-      })
+      });
 
       await tx.approveData.deleteMany({
         where: { adAccountId },
-      })
+      });
 
       await tx.metricSnapshot.deleteMany({
         where: { adAccountId },
-      })
+      });
 
       await tx.ad.deleteMany({
         where: { adAccountId },
-      })
+      });
 
       await tx.adSet.deleteMany({
         where: { adAccountId },
-      })
+      });
 
       await tx.campaign.deleteMany({
         where: { adAccountId },
-      })
+      });
 
       await tx.adAccount.delete({
         where: { id: adAccountId },
-      })
-    })
+      });
+    });
 
     const remainingAccounts = await prisma.adAccount.count({
       where: { facebookConnectionId },
-    })
+    });
 
     res.json({
       message: 'Account deleted successfully',
       deletedAccountId: req.adAccount.accountId,
       connectionEmpty: remainingAccounts === 0,
       remainingAccounts,
-    })
+    });
   } catch (error) {
-    console.error('Delete account error:', error)
+    console.error('Delete account error:', error);
     res.status(500).json({
       error: 'Internal server error',
       message: error.message || 'Failed to delete account',
-    })
+    });
   }
-})
+});
+
+export default router;
