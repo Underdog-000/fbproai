@@ -230,54 +230,92 @@ router.get('/facebook/callback', async (req, res) => {
     
     const adAccounts = accountsResponse.data.data || [];
     
-    // Определяем userId (из state или создаем нового)
+       // Определяем userId (из state или создаем нового)
     let userId = state;
-    
+
     if (!userId) {
-      // Создаем нового пользователя на основе Facebook
-      const newUser = await prisma.user.create({
-        data: {
+      const existingUser = await prisma.user.findUnique({
+        where: {
           email: fbUser.email || `${fbUser.id}@facebook.com`,
-          name: fbUser.name,
-          password: 'facebook-oauth', // Placeholder, не используется
         },
       });
-      userId = newUser.id;
+
+      if (existingUser) {
+        userId = existingUser.id;
+      } else {
+        const newUser = await prisma.user.create({
+          data: {
+            email: fbUser.email || `${fbUser.id}@facebook.com`,
+            name: fbUser.name,
+            password: 'facebook-oauth',
+          },
+        });
+        userId = newUser.id;
+      }
     }
-    
-    // Сохраняем/обновляем рекламные аккаунты
+
+    // Создаем или обновляем FacebookConnection
+    const connection = await prisma.facebookConnection.upsert({
+      where: { facebookUserId: fbUser.id },
+      update: {
+        userId,
+        facebookName: fbUser.name,
+        facebookEmail: fbUser.email || null,
+        accessToken: encrypt(access_token),
+        tokenExpiresAt: new Date(Date.now() + expires_in * 1000),
+        status: 'active',
+        updatedAt: new Date(),
+      },
+      create: {
+        userId,
+        facebookUserId: fbUser.id,
+        facebookName: fbUser.name,
+        facebookEmail: fbUser.email || null,
+        accessToken: encrypt(access_token),
+        tokenExpiresAt: new Date(Date.now() + expires_in * 1000),
+        status: 'active',
+      },
+    });
+
+    // Сохраняем/обновляем рекламные аккаунты подключения
     for (const account of adAccounts) {
       await prisma.adAccount.upsert({
         where: { accountId: `act_${account.account_id}` },
         update: {
+          facebookConnectionId: connection.id,
           name: account.name,
           timezone: account.timezone_id?.toString() || 'UTC',
-          accessToken: encrypt(access_token),
-          tokenExpiresAt: new Date(Date.now() + expires_in * 1000),
+          currency: account.currency || null,
           status: 'active',
           updatedAt: new Date(),
         },
         create: {
-          userId,
+          facebookConnectionId: connection.id,
           accountId: `act_${account.account_id}`,
           name: account.name,
           timezone: account.timezone_id?.toString() || 'UTC',
-          accessToken: encrypt(access_token),
-          tokenExpiresAt: new Date(Date.now() + expires_in * 1000),
+          currency: account.currency || null,
           status: 'active',
         },
       });
     }
-    
+
+    await prisma.facebookConnection.update({
+      where: { id: connection.id },
+      data: {
+        lastSyncedAt: new Date(),
+      },
+    });
+
     // Генерируем JWT для приложения
     const token = generateToken(userId);
-    
+
     // Редирект на frontend с токеном
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
     return res.redirect(
-  `${frontendUrl}/?token=${token}&accounts=${adAccounts.length}`
-);
+      `${frontendUrl}/?token=${token}&accounts=${adAccounts.length}`
+    );
     
   } catch (error) {
     console.error('Facebook OAuth callback error:', error);
