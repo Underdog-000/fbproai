@@ -57,14 +57,18 @@ router.get('/:accountId', checkAccountOwnership, async (req, res) => {
     const account = await prisma.adAccount.findUnique({
       where: { id: req.adAccount.id },
       include: {
-  _count: {
-    select: {
-      rules: true,
-    },
-  },
-},
+        campaigns: {
+          orderBy: { createdTime: 'desc' },
+        },
+        _count: {
+          select: {
+            rules: true,
+            campaigns: true,
+          },
+        },
+      },
     });
-    
+
     res.json({ account });
   } catch (error) {
     console.error('Get account error:', error);
