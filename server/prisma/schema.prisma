@@ -8,43 +8,80 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// Пользователь системы
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  adAccounts AdAccount[]
+  id                  String   @id @default(cuid())
+  email               String   @unique
+  name                String?
+  password            String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  facebookConnections FacebookConnection[]
 }
 
-// Рекламный аккаунт Facebook
-model AdAccount {
-  id             String   @id @default(cuid())
-  userId         String
-  accountId      String   @unique // Facebook account ID (act_XXX)
-  name           String
-  timezone       String   @default("UTC")
-  accessToken    String   @map("access_token") // Зашифрованный токен
-  tokenExpiresAt DateTime @map("token_expires_at")
-  status         String   @default("active") // active, expired, revoked
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  
-  user              User                @relation(fields: [userId], references: [id])
-  campaigns         Campaign[]
-  adSets            AdSet[]
-  ads               Ad[]
-  metrics           MetricSnapshot[]
-  rules             Rule[]
-  ruleExecutions    RuleExecution[]
-  aiRecommendations AIRecommendation[]
-  aiActions         AIAction[]
-  approveData       ApproveData[]
-  
+model FacebookConnection {
+  id                String   @id @default(cuid())
+  userId            String
+  facebookUserId    String   @unique @map("facebook_user_id")
+  facebookName      String   @map("facebook_name")
+  facebookEmail     String?  @map("facebook_email")
+  accessToken       String   @map("access_token")
+  tokenExpiresAt    DateTime @map("token_expires_at")
+  status            String   @default("active") // active, expired, banned, disconnected, archived
+  aiEnabled         Boolean  @default(false) @map("ai_enabled")
+  aiMode            String   @default("off") @map("ai_mode") // off, recommend, auto
+  connectedAt       DateTime @default(now()) @map("connected_at")
+  lastSyncedAt      DateTime? @map("last_synced_at")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user              User        @relation(fields: [userId], references: [id])
+  adAccounts        AdAccount[]
+
   @@index([userId])
+  @@index([status])
+}
+
+model AdAccount {
+  id                   String   @id @default(cuid())
+  facebookConnectionId String   @map("facebook_connection_id")
+  accountId            String   @unique // act_XXX
+  name                 String
+  timezone             String   @default("UTC")
+  status               String   @default("active") // active, disabled, banned, archived
+
+  currency             String?
+  billingStatus        String?  @map("billing_status") // ok, restricted, unpaid, unknown
+  billingCountry       String?  @map("billing_country")
+  spendCap             Float?   @map("spend_cap")
+
+  paymentMethodLabel   String?  @map("payment_method_label") // Visa •••• 4242
+  paymentMethodType    String?  @map("payment_method_type")  // visa, mastercard, paypal, unknown
+  paymentMethodStatus  String?  @map("payment_method_status") // active, failed, disabled, unknown
+
+  aiEnabled            Boolean  @default(false) @map("ai_enabled")
+  aiMode               String   @default("off") @map("ai_mode") // off, recommend, auto
+  aiLastCheckAt        DateTime? @map("ai_last_check_at")
+
+  lastSyncedAt         DateTime? @map("last_synced_at")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  facebookConnection   FacebookConnection @relation(fields: [facebookConnectionId], references: [id])
+
+  campaigns            Campaign[]
+  adSets               AdSet[]
+  ads                  Ad[]
+  metrics              MetricSnapshot[]
+  rules                Rule[]
+  ruleExecutions       RuleExecution[]
+  aiRecommendations    AIRecommendation[]
+  aiActions            AIAction[]
+  approveData          ApproveData[]
+
+  @@index([facebookConnectionId])
+  @@index([status])
+  @@index([billingStatus])
 }
 
 // Кампания
