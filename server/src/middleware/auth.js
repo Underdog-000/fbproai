@@ -13,22 +13,19 @@ const prisma = new PrismaClient();
  */
 export async function authenticate(req, res, next) {
   try {
-    // Получаем токен из заголовка
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'Authentication required',
-        message: 'No token provided' 
+        message: 'No token provided',
       });
     }
-    
-    const token = authHeader.substring(7); // Удаляем "Bearer "
-    
-    // Верифицируем токен
+
+    const token = authHeader.substring(7);
+
     const decoded = jwt.verify(token, config.jwtSecret);
-    
-    // Получаем пользователя из БД
+
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       select: {
@@ -38,37 +35,35 @@ export async function authenticate(req, res, next) {
         createdAt: true,
       },
     });
-    
+
     if (!user) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'Authentication failed',
-        message: 'User not found' 
+        message: 'User not found',
       });
     }
-    
-    // Добавляем пользователя в запрос
+
     req.user = user;
     next();
-    
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'Authentication failed',
-        message: 'Invalid token' 
+        message: 'Invalid token',
       });
     }
-    
+
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'Authentication failed',
-        message: 'Token expired' 
+        message: 'Token expired',
       });
     }
-    
+
     console.error('Auth middleware error:', error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: 'Internal server error',
-      message: 'Authentication failed' 
+      message: 'Authentication failed',
     });
   }
 }
@@ -115,19 +110,6 @@ export async function checkAccountOwnership(req, res, next) {
     return res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to verify account ownership',
-    });
-  }
-}
-    
-    // Добавляем аккаунт в запрос для дальнейшего использования
-    req.adAccount = adAccount;
-    next();
-    
-  } catch (error) {
-    console.error('Account ownership check error:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      message: 'Failed to verify account ownership' 
     });
   }
 }
