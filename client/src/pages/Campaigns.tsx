@@ -9,6 +9,12 @@ import {
   RefreshCw,
   Facebook,
   CheckCircle2,
+  X,
+  Settings,
+  DollarSign,
+  Percent,
+  Target,
+  Clock,
 } from 'lucide-react'
 import { ApiContext } from '../App'
 
@@ -17,8 +23,13 @@ const Campaigns: React.FC = () => {
   const queryClient = useQueryClient()
 
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isApplyingTemplate, setIsApplyingTemplate] = useState(false)
   const [selectedConnectionId, setSelectedConnectionId] = useState<string>('')
   const [selectedAdAccountId, setSelectedAdAccountId] = useState<string>('')
+
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
+  const [selectedCampaignForTemplate, setSelectedCampaignForTemplate] = useState<any | null>(null)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
 
   const { data: accountsData, isLoading: accountsLoading } = useQuery({
     queryKey: ['accounts'],
@@ -129,7 +140,7 @@ const Campaigns: React.FC = () => {
     }
   }
 
-  const handleApplyTemplate = async (campaign: any) => {
+  const openTemplateModal = (campaign: any) => {
     if (!selectedAdAccount) {
       alert('Сначала выберите рекламный аккаунт')
       return
@@ -140,42 +151,51 @@ const Campaigns: React.FC = () => {
       return
     }
 
-    const templateText = templates
-      .map(
-        (template: any, index: number) =>
-          `${index + 1}. ${template.name} | ${template.offerName} | ROI ${template.targetRoi}%`
-      )
-      .join('\n')
+    setSelectedCampaignForTemplate(campaign)
+    setSelectedTemplateId(templates[0]?.id || '')
+    setIsTemplateModalOpen(true)
+  }
 
-    const selectedIndexInput = window.prompt(
-      `Выберите номер шаблона:\n\n${templateText}`,
-      '1'
-    )
+  const closeTemplateModal = () => {
+    if (isApplyingTemplate) return
+    setIsTemplateModalOpen(false)
+    setSelectedCampaignForTemplate(null)
+    setSelectedTemplateId('')
+  }
 
-    if (!selectedIndexInput) return
-
-    const selectedIndex = Number(selectedIndexInput) - 1
-    const selectedTemplate = templates[selectedIndex]
-
-    if (!selectedTemplate) {
-      alert('Неверный номер шаблона')
+  const handleApplyTemplate = async () => {
+    if (!selectedCampaignForTemplate || !selectedAdAccount || !selectedTemplateId) {
       return
     }
 
+    setIsApplyingTemplate(true)
+
     try {
-      await api.post(`/rule-templates/${selectedTemplate.id}/apply`, {
+      const selectedTemplate = templates.find(
+        (template: any) => template.id === selectedTemplateId
+      )
+
+      await api.post(`/rule-templates/${selectedTemplateId}/apply`, {
         adAccountId: selectedAdAccount.id,
-        campaignId: campaign.campaignId,
-        campaignName: campaign.name,
+        campaignId: selectedCampaignForTemplate.campaignId,
+        campaignName: selectedCampaignForTemplate.name,
       })
 
-      alert(`Шаблон "${selectedTemplate.name}" применён к кампании "${campaign.name}"`)
+      await queryClient.invalidateQueries({ queryKey: ['campaign-rules'] })
+
+      alert(
+        `Шаблон "${selectedTemplate?.name || 'Template'}" применён к кампании "${selectedCampaignForTemplate.name}"`
+      )
+
+      closeTemplateModal()
     } catch (error: any) {
       const message =
         error?.response?.data?.message ||
         error?.message ||
         'Ошибка применения шаблона'
       alert(message)
+    } finally {
+      setIsApplyingTemplate(false)
     }
   }
 
@@ -212,6 +232,10 @@ const Campaigns: React.FC = () => {
   }
 
   const isLoading = accountsLoading || campaignsLoading
+
+  const selectedTemplate = templates.find(
+    (template: any) => template.id === selectedTemplateId
+  )
 
   return (
     <div className="space-y-6">
@@ -362,7 +386,7 @@ const Campaigns: React.FC = () => {
                   </td>
                   <td className="table-cell">
                     <button
-                      onClick={() => handleApplyTemplate(campaign)}
+                      onClick={() => openTemplateModal(campaign)}
                       className="btn-secondary"
                     >
                       Применить шаблон
@@ -419,13 +443,117 @@ const Campaigns: React.FC = () => {
         </div>
       )}
 
+      {isTemplateModalOpen && selectedCampaignForTemplate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Применить шаблон
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Кампания: {selectedCampaignForTemplate.name}
+                </p>
+              </div>
+
+              <button
+                onClick={closeTemplateModal}
+                disabled={isApplyingTemplate}
+                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Выберите шаблон
+                </label>
+                <select
+                  value={selectedTemplateId}
+                  onChange={(e) => setSelectedTemplateId(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white"
+                >
+                  {templates.map((template: any) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name} | {template.offerName} | ROI {template.targetRoi}%
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedTemplate && (
+                <div className="rounded-lg border border-gray-200 p-4 bg-gray-50">
+                  <h4 className="text-base font-semibold text-gray-900">
+                    {selectedTemplate.name}
+                  </h4>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-gray-600">
+                    <div className="flex items-center">
+                      <Settings className="h-4 w-4 mr-1" />
+                      <span>{selectedTemplate.offerName}</span>
+                    </div>
+
+                    <div className="flex items-center">
+                      <DollarSign className="h-4 w-4 mr-1" />
+                      <span>Payout: {selectedTemplate.payout}</span>
+                    </div>
+
+                    <div className="flex items-center">
+                      <Percent className="h-4 w-4 mr-1" />
+                      <span>Approve: {selectedTemplate.approveRate}%</span>
+                    </div>
+
+                    <div className="flex items-center">
+                      <Target className="h-4 w-4 mr-1" />
+                      <span>ROI: {selectedTemplate.targetRoi}%</span>
+                    </div>
+
+                    <div className="flex items-center">
+                      <Clock className="h-4 w-4 mr-1" />
+                      <span>Cooldown: {selectedTemplate.cooldownMinutes} мин</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 text-sm text-gray-600">
+                    Scope: {selectedTemplate.actionScope} | Action: {selectedTemplate.actionType} | Source: {selectedTemplate.sourceType}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+              <button
+                onClick={closeTemplateModal}
+                disabled={isApplyingTemplate}
+                className="btn-secondary"
+              >
+                Отмена
+              </button>
+
+              <button
+                onClick={handleApplyTemplate}
+                disabled={!selectedTemplateId || isApplyingTemplate}
+                className="btn-primary flex items-center space-x-2"
+              >
+                {isApplyingTemplate && (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                )}
+                <span>Применить шаблон</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h4 className="font-medium text-blue-900 mb-2">Информация</h4>
         <ul className="text-sm text-blue-800 space-y-1">
           <li>• Кампании загружаются из выбранного рекламного аккаунта</li>
           <li>• Шаблон применяется к конкретной кампании</li>
-          <li>• Сейчас выбор шаблона сделан через prompt</li>
-          <li>• Следующий шаг — нормальное окно выбора шаблона без prompt</li>
+          <li>• Выбор шаблона теперь делается через modal</li>
+          <li>• Следующий шаг — показывать applied rule прямо из Campaigns без перехода в Rules</li>
         </ul>
       </div>
     </div>
