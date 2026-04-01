@@ -1,14 +1,17 @@
-import React, { useContext, useState } from 'react'
+import React, { useContext, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { 
-  Facebook, 
-  Plus, 
-  RefreshCw, 
-  Trash2, 
+import {
+  Facebook,
+  Plus,
+  RefreshCw,
+  Trash2,
   Clock,
   CheckCircle,
   AlertCircle,
-  Loader2
+  Loader2,
+  CreditCard,
+  Bot,
+  Users,
 } from 'lucide-react'
 import { ApiContext, AuthContext } from '../App'
 
@@ -16,132 +19,176 @@ const Accounts: React.FC = () => {
   const api = useContext(ApiContext)
   const { user } = useContext(AuthContext)
   const queryClient = useQueryClient()
+
   const [syncingId, setSyncingId] = useState<string | null>(null)
   const [isSyncingAll, setIsSyncingAll] = useState(false)
-  
-  // Запрос списка аккаунтов
-  const { data, isLoading, refetch } = useQuery({
+
+  const { data, isLoading } = useQuery({
     queryKey: ['accounts'],
     queryFn: async () => {
       const response = await api.get('/accounts')
       return response.data
     },
   })
-  
-  // Мутация для синхронизации
+
+  const connections = data?.connections || []
+
+  const allAccounts = useMemo(
+    () => connections.flatMap((connection: any) => connection.adAccounts || []),
+    [connections]
+  )
+
   const syncMutation = useMutation({
     mutationFn: async (accountId: string) => {
       const response = await api.post(`/accounts/${accountId}/sync`)
       return response.data
     },
     onSuccess: () => {
-  queryClient.invalidateQueries({ queryKey: ['accounts'] })
-  setSyncingId(null)
-  alert('Синхронизация завершена')
-},
+      queryClient.invalidateQueries({ queryKey: ['accounts'] })
+      setSyncingId(null)
+      alert('Синхронизация завершена')
+    },
     onError: (error: any) => {
-  setSyncingId(null)
-  const message =
-    error?.response?.data?.message ||
-    error?.message ||
-    'Ошибка синхронизации'
-  alert(message)
-},
+      setSyncingId(null)
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Ошибка синхронизации'
+      alert(message)
+    },
   })
-  const handleSyncAll = async () => {
-  if (!accounts.length || isSyncingAll) return
 
-  setIsSyncingAll(true)
-
-  let successCount = 0
-  let failedCount = 0
-  const failedAccounts: string[] = []
-
-  try {
-    for (const account of accounts) {
-      try {
-        await api.post(`/accounts/${account.accountId}/sync`)
-        successCount++
-      } catch (error: any) {
-        failedCount++
-        failedAccounts.push(account.name || account.accountId)
-        console.error(`Failed to sync account ${account.accountId}:`, error)
-      }
-    }
-
-    await queryClient.invalidateQueries({ queryKey: ['accounts'] })
-
-    if (failedCount === 0) {
-      alert(`Синхронизация завершена. Успешно: ${successCount}`)
-    } else {
-      alert(
-        `Синхронизация завершена.\nУспешно: ${successCount}\nС ошибкой: ${failedCount}\n\nПроблемные аккаунты:\n${failedAccounts.join('\n')}`
-      )
-    }
-  } finally {
-    setIsSyncingAll(false)
-  }
-}
-  // Мутация для удаления
   const deleteMutation = useMutation({
     mutationFn: async (accountId: string) => {
       const response = await api.delete(`/accounts/${accountId}`)
       return response.data
     },
     onSuccess: () => {
-  queryClient.invalidateQueries({ queryKey: ['accounts'] })
-  setSyncingId(null)
-  alert('Удалено')
-},
+      queryClient.invalidateQueries({ queryKey: ['accounts'] })
+      alert('Аккаунт удалён')
+    },
+    onError: (error: any) => {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Ошибка удаления аккаунта'
+      alert(message)
+    },
   })
-  
-  // Facebook OAuth
+
   const handleConnectFacebook = async () => {
     try {
       const response = await api.get(`/auth/facebook?userId=${user?.id}`)
       window.location.href = response.data.authUrl
     } catch (error) {
       console.error('Failed to get Facebook auth URL:', error)
+      alert('Не удалось начать подключение Facebook')
     }
   }
-  
-  // Синхронизация аккаунта
+
   const handleSync = (accountId: string) => {
     setSyncingId(accountId)
     syncMutation.mutate(accountId)
   }
-  
-  // Удаление аккаунта
-  const handleDelete = (accountId: string) => {
-    if (window.confirm('Вы уверены, что хотите удалить этот аккаунт?')) {
+
+  const handleSyncAll = async () => {
+    if (!allAccounts.length || isSyncingAll) return
+
+    setIsSyncingAll(true)
+
+    let successCount = 0
+    let failedCount = 0
+    const failedAccounts: string[] = []
+
+    try {
+      for (const account of allAccounts) {
+        try {
+          await api.post(`/accounts/${account.accountId}/sync`)
+          successCount++
+        } catch (error) {
+          failedCount++
+          failedAccounts.push(account.name || account.accountId)
+          console.error(`Failed to sync account ${account.accountId}:`, error)
+        }
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['accounts'] })
+
+      if (failedCount === 0) {
+        alert(`Синхронизация завершена. Успешно: ${successCount}`)
+      } else {
+        alert(
+          `Синхронизация завершена.\nУспешно: ${successCount}\nС ошибкой: ${failedCount}\n\nПроблемные аккаунты:\n${failedAccounts.join('\n')}`
+        )
+      }
+    } finally {
+      setIsSyncingAll(false)
+    }
+  }
+
+  const handleDeleteAccount = (accountId: string, accountName?: string) => {
+    const confirmed = window.confirm(
+      `Удалить рекламный аккаунт${accountName ? ` "${accountName}"` : ''}?`
+    )
+
+    if (confirmed) {
       deleteMutation.mutate(accountId)
     }
   }
-  
-  const accounts = data?.accounts || []
-  
+
+  const getConnectionStatusBadge = (status?: string) => {
+    const active = status === 'active'
+    return (
+      <div className={`flex items-center text-sm ${active ? 'text-green-600' : 'text-yellow-600'}`}>
+        {active ? (
+          <CheckCircle className="h-4 w-4 mr-1" />
+        ) : (
+          <AlertCircle className="h-4 w-4 mr-1" />
+        )}
+        <span>{active ? 'Подключение активно' : status || 'Неизвестно'}</span>
+      </div>
+    )
+  }
+
+  const getAccountStatusBadge = (status?: string) => {
+    const active = status === 'active'
+    return (
+      <div className={`flex items-center text-sm ${active ? 'text-green-600' : 'text-yellow-600'}`}>
+        {active ? (
+          <CheckCircle className="h-4 w-4 mr-1" />
+        ) : (
+          <AlertCircle className="h-4 w-4 mr-1" />
+        )}
+        <span>{active ? 'Активен' : status || 'Неизвестно'}</span>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
-      {/* Заголовок */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Аккаунты</h1>
-          <p className="text-gray-600 mt-1">Управление рекламными аккаунтами Facebook</p>
+          <p className="text-gray-600 mt-1">
+            Подключения Facebook и связанные рекламные аккаунты
+          </p>
         </div>
+
         <div className="flex space-x-3">
           <button
-  onClick={handleSyncAll}
-  className="btn-secondary flex items-center space-x-2"
-  disabled={isLoading || isSyncingAll || accounts.length === 0}
->
-  {isSyncingAll ? (
-    <Loader2 className="h-4 w-4 animate-spin" />
-  ) : (
-    <RefreshCw className="h-4 w-4" />
-  )}
-  <span>Синхронизировать все</span>
-</button>
-          <button 
+            onClick={handleSyncAll}
+            className="btn-secondary flex items-center space-x-2"
+            disabled={isLoading || isSyncingAll || allAccounts.length === 0}
+          >
+            {isSyncingAll ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            <span>Синхронизировать все</span>
+          </button>
+
+          <button
             onClick={handleConnectFacebook}
             className="btn-primary flex items-center space-x-2"
           >
@@ -150,20 +197,21 @@ const Accounts: React.FC = () => {
           </button>
         </div>
       </div>
-      
-      {/* Список аккаунтов */}
+
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
         </div>
-      ) : accounts.length === 0 ? (
+      ) : connections.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-12 text-center">
           <Facebook className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Нет подключенных аккаунтов</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Нет подключений Facebook
+          </h3>
           <p className="text-gray-500 mb-6">
-            Подключите ваш Facebook рекламный аккаунт для начала работы
+            Подключите Facebook-профиль, чтобы загрузить его рекламные аккаунты
           </p>
-          <button 
+          <button
             onClick={handleConnectFacebook}
             className="btn-primary inline-flex items-center space-x-2"
           >
@@ -172,94 +220,174 @@ const Accounts: React.FC = () => {
           </button>
         </div>
       ) : (
-        <div className="grid gap-4">
-          {accounts.map((account: any) => (
-            <div key={account.id} className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start space-x-4">
-                  <div className="bg-blue-100 p-3 rounded-lg">
-                    <Facebook className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{account.name}</h3>
-                    <p className="text-sm text-gray-500 mt-1">ID: {account.accountId}</p>
-                    <div className="flex items-center space-x-4 mt-2">
-                      <div className="flex items-center text-sm text-gray-500">
-                        <Clock className="h-4 w-4 mr-1" />
-                        <span>Часовой пояс: {account.timezone}</span>
+        <div className="space-y-6">
+          {connections.map((connection: any) => {
+            const adAccounts = connection.adAccounts || []
+            const activeAccounts = adAccounts.filter((a: any) => a.status === 'active').length
+
+            return (
+              <div key={connection.id} className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="p-6 border-b border-gray-100">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start space-x-4">
+                      <div className="bg-blue-100 p-3 rounded-lg">
+                        <Facebook className="h-6 w-6 text-blue-600" />
                       </div>
-                      <div className={`flex items-center text-sm ${
-                        account.status === 'active' ? 'text-green-600' : 'text-yellow-600'
-                      }`}>
-                        {account.status === 'active' ? (
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                        ) : (
-                          <AlertCircle className="h-4 w-4 mr-1" />
-                        )}
-                        <span>{account.status === 'active' ? 'Активен' : 'Истек токен'}</span>
+
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          {connection.facebookName || 'Facebook connection'}
+                        </h3>
+
+                        <div className="mt-1 text-sm text-gray-500 space-y-1">
+                          <p>Facebook ID: {connection.facebookUserId}</p>
+                          {connection.facebookEmail && (
+                            <p>Email: {connection.facebookEmail}</p>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-4 mt-3">
+                          {getConnectionStatusBadge(connection.status)}
+
+                          <div className="flex items-center text-sm text-gray-500">
+                            <Users className="h-4 w-4 mr-1" />
+                            <span>
+                              {adAccounts.length} аккаунтов / {activeAccounts} активных
+                            </span>
+                          </div>
+
+                          <div className="flex items-center text-sm text-gray-500">
+                            <Clock className="h-4 w-4 mr-1" />
+                            <span>
+                              Токен до:{' '}
+                              {connection.tokenExpiresAt
+                                ? new Date(connection.tokenExpiresAt).toLocaleDateString('ru-RU')
+                                : '—'}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                      <span>{account._count.campaigns} кампаний</span>
-                      <span>{account._count.rules} правил</span>
+
+                    <div className="text-sm text-gray-500 whitespace-nowrap">
+                      Подключено:{' '}
+                      {connection.connectedAt
+                        ? new Date(connection.connectedAt).toLocaleDateString('ru-RU')
+                        : '—'}
                     </div>
                   </div>
                 </div>
-                
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => handleSync(account.accountId)}
-                    disabled={syncingId === account.accountId}
-                    className="btn-secondary flex items-center space-x-2"
-                  >
-                    {syncingId === account.accountId ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                    <span>Синхронизировать</span>
-                  </button>
-                  <button
-                    onClick={() => handleDelete(account.accountId)}
-                    disabled={deleteMutation.isPending}
-                    className="btn-danger flex items-center space-x-2"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <span>Удалить</span>
-                  </button>
+
+                <div className="p-6 space-y-4">
+                  {adAccounts.length === 0 ? (
+                    <div className="text-sm text-gray-500">
+                      У этого подключения пока нет рекламных аккаунтов.
+                    </div>
+                  ) : (
+                    adAccounts.map((account: any) => (
+                      <div
+                        key={account.id}
+                        className="border border-gray-200 rounded-lg p-4"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="space-y-2">
+                            <div>
+                              <h4 className="text-base font-semibold text-gray-900">
+                                {account.name}
+                              </h4>
+                              <p className="text-sm text-gray-500">
+                                ID: {account.accountId}
+                              </p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-4">
+                              <div className="flex items-center text-sm text-gray-500">
+                                <Clock className="h-4 w-4 mr-1" />
+                                <span>Часовой пояс: {account.timezone || '—'}</span>
+                              </div>
+
+                              {getAccountStatusBadge(account.status)}
+
+                              <div className="text-sm text-gray-500">
+                                {account._count?.campaigns || 0} кампаний
+                              </div>
+
+                              <div className="text-sm text-gray-500">
+                                {account._count?.rules || 0} правил
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 pt-1">
+                              <div className="flex items-center">
+                                <CreditCard className="h-4 w-4 mr-1" />
+                                <span>
+                                  Billing:{' '}
+                                  {account.billingStatus || 'unknown'}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center">
+                                <span>
+                                  Карта:{' '}
+                                  {account.paymentMethodLabel || 'неизвестно'}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center">
+                                <Bot className="h-4 w-4 mr-1" />
+                                <span>
+                                  AI:{' '}
+                                  {account.aiEnabled
+                                    ? account.aiMode || 'on'
+                                    : 'off'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => handleSync(account.accountId)}
+                              disabled={syncingId === account.accountId}
+                              className="btn-secondary flex items-center space-x-2"
+                            >
+                              {syncingId === account.accountId ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4" />
+                              )}
+                              <span>Синхронизировать</span>
+                            </button>
+
+                            <button
+                              onClick={() =>
+                                handleDeleteAccount(account.accountId, account.name)
+                              }
+                              disabled={deleteMutation.isPending}
+                              className="btn-danger flex items-center space-x-2"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span>Удалить аккаунт</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
-              
-              {/* Информация о токене */}
-              <div className="mt-4 pt-4 border-t border-gray-100">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">Токен действителен до:</span>
-                  <span className={`font-medium ${
-                    new Date(account.tokenExpiresAt) < new Date() 
-                      ? 'text-red-600' 
-                      : 'text-gray-900'
-                  }`}>
-                    {new Date(account.tokenExpiresAt).toLocaleDateString('ru-RU')}
-                  </span>
-                </div>
-                {new Date(account.tokenExpiresAt) < new Date() && (
-                  <p className="text-red-600 text-sm mt-2">
-                    ⚠️ Токен истек. Пожалуйста, переподключите аккаунт.
-                  </p>
-                )}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
-      
-      {/* Информация */}
+
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h4 className="font-medium text-blue-900 mb-2">Информация</h4>
         <ul className="text-sm text-blue-800 space-y-1">
-          <li>• Данные синхронизируются автоматически каждые 6 часов</li>
-          <li>• Токены Facebook действительны 60 дней</li>
-          <li>• При истечении токена потребуется переподключение</li>
+          <li>• Один пользователь сервиса может подключить несколько Facebook-профилей</li>
+          <li>• У каждого подключения может быть несколько рекламных аккаунтов</li>
+          <li>• Удаление аккаунта сейчас удаляет только один рекламный аккаунт</li>
+          <li>• Удаление подключения целиком добавим следующим шагом</li>
         </ul>
       </div>
     </div>
