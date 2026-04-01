@@ -15,6 +15,7 @@ model User {
   password            String
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+  ruleTemplates       RuleTemplate[]
 
   facebookConnections FacebookConnection[]
 }
@@ -78,6 +79,8 @@ model AdAccount {
   aiRecommendations    AIRecommendation[]
   aiActions            AIAction[]
   approveData          ApproveData[]
+  campaignRules          CampaignRule[]
+  campaignRuleExecutions CampaignRuleExecution[]
 
   @@index([facebookConnectionId])
   @@index([status])
@@ -230,6 +233,89 @@ model RuleExecution {
   @@index([ruleId])
   @@index([adAccountId, executedAt])
   @@index([entityType, entityId])
+}
+
+model RuleTemplate {
+  id              String   @id @default(cuid())
+  userId          String
+  name            String
+  offerName       String
+  payout          Float
+  approveRate     Float    // 20 = 20%
+  targetRoi       Float    // 50 = 50%
+  actionScope     String   // ad, adset
+  actionType      String   // pause, enable
+  cooldownMinutes Int      @default(60)
+  isActive        Boolean  @default(true)
+
+  sourceType      String   @default("manual") // manual, pp_api
+  externalOfferId String?
+  notes           String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id])
+  campaignRules   CampaignRule[]
+
+  @@index([userId])
+  @@index([isActive])
+}
+
+model CampaignRule {
+  id                     String   @id @default(cuid())
+  adAccountId            String
+  campaignId             String
+  campaignName           String
+  ruleTemplateId         String
+
+  payout                 Float
+  approveRate            Float
+  targetRoi              Float
+  calculatedCplThreshold Float
+
+  actionScope            String   // ad, adset
+  actionType             String   // pause, enable
+
+  isActive               Boolean  @default(true)
+  lastExecutedAt         DateTime?
+  lastEvaluationAt       DateTime?
+  lastResult             String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  adAccount              AdAccount        @relation(fields: [adAccountId], references: [id])
+  ruleTemplate           RuleTemplate     @relation(fields: [ruleTemplateId], references: [id])
+  executions             CampaignRuleExecution[]
+
+  @@index([adAccountId])
+  @@index([campaignId])
+  @@index([ruleTemplateId])
+  @@index([isActive])
+}
+
+model CampaignRuleExecution {
+  id             String   @id @default(cuid())
+  campaignRuleId String
+  adAccountId    String
+  campaignId     String
+  entityType     String   // ad, adset
+  entityId       String
+  entityName     String
+
+  realCpl        Float?
+  thresholdCpl   Float?
+  actionTaken    String?
+  result         String?
+  details        String?
+  executedAt     DateTime @default(now())
+
+  campaignRule   CampaignRule @relation(fields: [campaignRuleId], references: [id])
+  adAccount      AdAccount    @relation(fields: [adAccountId], references: [id])
+
+  @@index([campaignRuleId])
+  @@index([adAccountId, executedAt])
+  @@index([campaignId])
 }
 
 // AI рекомендация
