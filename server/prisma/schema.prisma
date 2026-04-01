@@ -32,82 +32,19 @@ model AdAccount {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   
-  user           User     @relation(fields: [userId], references: [id])
-  campaigns      Campaign[]
-  adSets         AdSet[]
-  ads            Ad[]
-  metrics        MetricSnapshot[]
-  rules          Rule[]
-  ruleExecutions RuleExecution[]
+  user              User                @relation(fields: [userId], references: [id])
+  metrics           MetricSnapshot[]
+  rules             Rule[]
+  ruleExecutions    RuleExecution[]
   aiRecommendations AIRecommendation[]
-  aiActions      AIAction[]
-  approveData    ApproveData[]
+  aiActions         AIAction[]
+  approveData       ApproveData[]
   
   @@index([userId])
 }
 
 // Кампания
-model Campaign {
-  id           String   @id @default(cuid())
-  adAccountId  String
-  campaignId   String   @unique // Facebook campaign ID
-  name         String
-  status       String   // ACTIVE, PAUSED, DELETED
-  objective    String?
-  createdTime  DateTime @map("created_time")
-  updatedTime  DateTime @map("updated_time")
-  createdAt    DateTime @default(now())
-  
-  adAccount    AdAccount @relation(fields: [adAccountId], references: [id])
-  adSets       AdSet[]
-  
-  @@index([adAccountId])
-  @@index([status])
-}
 
-// Группа объявлений (Ad Set)
-model AdSet {
-  id          String   @id @default(cuid())
-  adAccountId String
-  campaignId  String
-  adSetId     String   @unique // Facebook ad set ID
-  name        String
-  status      String   // ACTIVE, PAUSED, DELETED
-  budget      Float?
-  bidStrategy String?  // LOWEST_COST_WITH_BID_CAP, COST_CAP, etc.
-  createdTime DateTime @map("created_time")
-  updatedTime DateTime @map("updated_time")
-  createdAt   DateTime @default(now())
-  
-  adAccount   AdAccount @relation(fields: [adAccountId], references: [id])
-  campaign    Campaign  @relation(fields: [campaignId], references: [id])
-  ads         Ad[]
-  
-  @@index([adAccountId])
-  @@index([campaignId])
-  @@index([status])
-}
-
-// Объявление
-model Ad {
-  id          String   @id @default(cuid())
-  adAccountId String
-  adSetId     String
-  adId        String   @unique // Facebook ad ID
-  name        String
-  status      String   // ACTIVE, PAUSED, DELETED
-  creativeUrl String?  @map("creative_url")
-  createdTime DateTime @map("created_time")
-  updatedTime DateTime @map("updated_time")
-  createdAt   DateTime @default(now())
-  
-  adAccount   AdAccount @relation(fields: [adAccountId], references: [id])
-  adSet       AdSet     @relation(fields: [adSetId], references: [id])
-  
-  @@index([adAccountId])
-  @@index([adSetId])
-  @@index([status])
-}
 
 // Снимок метрик (кэш статистики)
 model MetricSnapshot {
