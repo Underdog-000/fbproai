@@ -34,6 +34,9 @@ model AdAccount {
   updatedAt      DateTime @updatedAt
   
   user              User                @relation(fields: [userId], references: [id])
+  campaigns         Campaign[]
+  adSets            AdSet[]
+  ads               Ad[]
   metrics           MetricSnapshot[]
   rules             Rule[]
   ruleExecutions    RuleExecution[]
@@ -45,7 +48,65 @@ model AdAccount {
 }
 
 // Кампания
+model Campaign {
+  id           String   @id @default(cuid())
+  adAccountId  String
+  campaignId   String   @unique
+  name         String
+  status       String
+  objective    String?
+  createdTime  DateTime
+  updatedTime  DateTime
+  createdAt    DateTime @default(now())
 
+  adAccount    AdAccount @relation(fields: [adAccountId], references: [id])
+  adSets       AdSet[]
+
+  @@index([adAccountId])
+  @@index([campaignId])
+}
+
+model AdSet {
+  id          String   @id @default(cuid())
+  adAccountId String
+  campaignId  String
+  adSetId     String   @unique
+  name        String
+  status      String
+  budget      Float?
+  bidStrategy String?
+  createdTime DateTime
+  updatedTime DateTime
+  createdAt   DateTime @default(now())
+
+  adAccount   AdAccount @relation(fields: [adAccountId], references: [id])
+  campaign    Campaign  @relation(fields: [campaignId], references: [id])
+  ads         Ad[]
+
+  @@index([adAccountId])
+  @@index([campaignId])
+  @@index([adSetId])
+}
+
+model Ad {
+  id          String   @id @default(cuid())
+  adAccountId String
+  adSetId     String
+  adId        String   @unique
+  name        String
+  status      String
+  creativeUrl String?
+  createdTime DateTime
+  updatedTime DateTime
+  createdAt   DateTime @default(now())
+
+  adAccount   AdAccount @relation(fields: [adAccountId], references: [id])
+  adSet       AdSet     @relation(fields: [adSetId], references: [id])
+
+  @@index([adAccountId])
+  @@index([adSetId])
+  @@index([adId])
+}
 
 // Снимок метрик (кэш статистики)
 model MetricSnapshot {
