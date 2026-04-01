@@ -185,6 +185,14 @@ router.delete('/:accountId', checkAccountOwnership, async (req, res) => {
     const facebookConnectionId = req.adAccount.facebookConnectionId;
 
     await prisma.$transaction(async (tx) => {
+      await tx.campaignRuleExecution.deleteMany({
+        where: { adAccountId },
+      });
+
+      await tx.campaignRule.deleteMany({
+        where: { adAccountId },
+      });
+
       await tx.ruleExecution.deleteMany({
         where: { adAccountId },
       });
@@ -194,12 +202,12 @@ router.delete('/:accountId', checkAccountOwnership, async (req, res) => {
       });
 
       await tx.aIRecommendation.deleteMany({
-  where: { adAccountId },
-});
+        where: { adAccountId },
+      });
 
-await tx.aIAction.deleteMany({
-  where: { adAccountId },
-});
+      await tx.aIAction.deleteMany({
+        where: { adAccountId },
+      });
 
       await tx.approveData.deleteMany({
         where: { adAccountId },
@@ -283,6 +291,14 @@ router.delete('/connections/:connectionId', async (req, res) => {
 
     await prisma.$transaction(async (tx) => {
       if (adAccountIds.length > 0) {
+        await tx.campaignRuleExecution.deleteMany({
+          where: { adAccountId: { in: adAccountIds } },
+        })
+
+        await tx.campaignRule.deleteMany({
+          where: { adAccountId: { in: adAccountIds } },
+        })
+
         await tx.ruleExecution.deleteMany({
           where: { adAccountId: { in: adAccountIds } },
         })
