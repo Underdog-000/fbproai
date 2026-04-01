@@ -6,11 +6,13 @@ import cors from 'cors';
 import cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
 import config from './config/index.js';
+import ruleTemplateRoutes from './routes/rule-templates.js'
 
 // Routes
 import authRoutes from './routes/auth.js';
 import accountRoutes from './routes/accounts.js';
 import rulesRoutes from './routes/rules.js';
+
 
 // Services
 import { syncAccountData, updateEntityStatus } from './services/facebook.js';
@@ -37,6 +39,7 @@ if (config.nodeEnv === 'development') {
 app.use('/api/auth', authRoutes);
 app.use('/api/accounts', accountRoutes);
 app.use('/api/rules', rulesRoutes);
+app.use('/api/rule-templates', ruleTemplateRoutes)
 
 // Health check
 app.get('/api/health', (req, res) => {
