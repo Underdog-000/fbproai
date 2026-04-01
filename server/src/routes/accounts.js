@@ -245,4 +245,102 @@ await tx.aIAction.deleteMany({
   }
 });
 
+/**
+ * DELETE /api/connections/:connectionId
+ * Удалить Facebook-подключение и все связанные рекламные аккаунты
+ */
+router.delete('/connections/:connectionId', async (req, res) => {
+  try {
+    const { connectionId } = req.params
+
+    if (!connectionId) {
+      return res.status(400).json({
+        error: 'Bad request',
+        message: 'Connection ID required',
+      })
+    }
+
+    const connection = await prisma.facebookConnection.findFirst({
+      where: {
+        id: connectionId,
+        userId: req.user.id,
+      },
+      include: {
+        adAccounts: {
+          select: { id: true, accountId: true, name: true },
+        },
+      },
+    })
+
+    if (!connection) {
+      return res.status(404).json({
+        error: 'Not found',
+        message: 'Facebook connection not found or access denied',
+      })
+    }
+
+    const adAccountIds = connection.adAccounts.map((a) => a.id)
+
+    await prisma.$transaction(async (tx) => {
+      if (adAccountIds.length > 0) {
+        await tx.ruleExecution.deleteMany({
+          where: { adAccountId: { in: adAccountIds } },
+        })
+
+        await tx.rule.deleteMany({
+          where: { adAccountId: { in: adAccountIds } },
+        })
+
+        await tx.aIRecommendation.deleteMany({
+          where: { adAccountId: { in: adAccountIds } },
+        })
+
+        await tx.aIAction.deleteMany({
+          where: { adAccountId: { in: adAccountIds } },
+        })
+
+        await tx.approveData.deleteMany({
+          where: { adAccountId: { in: adAccountIds } },
+        })
+
+        await tx.metricSnapshot.deleteMany({
+          where: { adAccountId: { in: adAccountIds } },
+        })
+
+        await tx.ad.deleteMany({
+          where: { adAccountId: { in: adAccountIds } },
+        })
+
+        await tx.adSet.deleteMany({
+          where: { adAccountId: { in: adAccountIds } },
+        })
+
+        await tx.campaign.deleteMany({
+          where: { adAccountId: { in: adAccountIds } },
+        })
+
+        await tx.adAccount.deleteMany({
+          where: { id: { in: adAccountIds } },
+        })
+      }
+
+      await tx.facebookConnection.delete({
+        where: { id: connectionId },
+      })
+    })
+
+    res.json({
+      message: 'Facebook connection deleted successfully',
+      deletedConnectionId: connectionId,
+      deletedAccounts: connection.adAccounts.length,
+    })
+  } catch (error) {
+    console.error('Delete connection error:', error)
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message || 'Failed to delete Facebook connection',
+    })
+  }
+})
+
 export default router;
