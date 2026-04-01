@@ -162,7 +162,7 @@ cron.schedule(config.cron.rulesCheck, async () => {
           continue;
         }
 
-        let entities: any[] = [];
+        let entities = [];
 
         if (campaignRule.actionScope === 'adset') {
           entities = await prisma.adSet.findMany({
@@ -284,7 +284,7 @@ cron.schedule(config.cron.rulesCheck, async () => {
             });
 
             actionsTaken += 1;
-          } catch (error: any) {
+          } catch (error) {
             console.error(
               `[CRON] Failed to execute campaign rule ${campaignRule.id} on ${entityType} ${entityId}:`,
               error.message
@@ -316,7 +316,7 @@ cron.schedule(config.cron.rulesCheck, async () => {
             lastResult: actionsTaken > 0 ? `actions_${actionsTaken}` : 'no_action',
           },
         });
-      } catch (error: any) {
+      } catch (error) {
         console.error(
           `[CRON] Failed to process campaign rule ${campaignRule.id}:`,
           error.message
