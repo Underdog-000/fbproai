@@ -193,13 +193,13 @@ router.delete('/:accountId', checkAccountOwnership, async (req, res) => {
         where: { adAccountId },
       });
 
-      await tx.aiRecommendation.deleteMany({
-        where: { adAccountId },
-      });
+      await tx.aIRecommendation.deleteMany({
+  where: { adAccountId },
+});
 
-      await tx.aiAction.deleteMany({
-        where: { adAccountId },
-      });
+await tx.aIAction.deleteMany({
+  where: { adAccountId },
+});
 
       await tx.approveData.deleteMany({
         where: { adAccountId },
