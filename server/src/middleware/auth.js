@@ -81,28 +81,43 @@ export async function checkAccountOwnership(req, res, next) {
   try {
     const { accountId } = req.params;
     const userId = req.user.id;
-    
+
     if (!accountId) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Bad request',
-        message: 'Account ID required' 
+        message: 'Account ID required',
       });
     }
-    
-    // Проверяем, что аккаунт принадлежит пользователю
+
     const adAccount = await prisma.adAccount.findFirst({
       where: {
         accountId,
-        userId,
+        facebookConnection: {
+          userId,
+        },
+      },
+      include: {
+        facebookConnection: true,
       },
     });
-    
+
     if (!adAccount) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         error: 'Not found',
-        message: 'Ad account not found or access denied' 
+        message: 'Ad account not found or access denied',
       });
     }
+
+    req.adAccount = adAccount;
+    next();
+  } catch (error) {
+    console.error('Account ownership check error:', error);
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to verify account ownership',
+    });
+  }
+}
     
     // Добавляем аккаунт в запрос для дальнейшего использования
     req.adAccount = adAccount;
