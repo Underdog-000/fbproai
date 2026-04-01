@@ -18,27 +18,27 @@ router.use(authenticate);
  */
 router.get('/', async (req, res) => {
   try {
-    const accounts = await prisma.adAccount.findMany({
-      where: { userId: req.user.id },
-      select: {
-        id: true,
-        accountId: true,
-        name: true,
-        timezone: true,
-        status: true,
-        tokenExpiresAt: true,
-        createdAt: true,
-        updatedAt: true,
-        _count: {
-  select: {
-    rules: true,
-  },
-},
+    const connections = await prisma.facebookConnection.findMany({
+      where: {
+        userId: req.user.id,
+      },
+      include: {
+        adAccounts: {
+          include: {
+            _count: {
+              select: {
+                campaigns: true,
+                rules: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
-    
-    res.json({ accounts });
+
+    res.json({ connections });
   } catch (error) {
     console.error('Get accounts error:', error);
     res.status(500).json({
