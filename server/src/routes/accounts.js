@@ -30,11 +30,11 @@ router.get('/', async (req, res) => {
         createdAt: true,
         updatedAt: true,
         _count: {
-          select: {
-            campaigns: true,
-            rules: true,
-          },
-        },
+  select: {
+    campaigns: true,
+    rules: true,
+  },
+},
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -58,19 +58,12 @@ router.get('/:accountId', checkAccountOwnership, async (req, res) => {
     const account = await prisma.adAccount.findUnique({
       where: { id: req.adAccount.id },
       include: {
-        campaigns: {
-          orderBy: { createdTime: 'desc' },
-          take: 100,
-        },
-        _count: {
-          select: {
-            campaigns: true,
-            adSets: true,
-            ads: true,
-            rules: true,
-          },
-        },
-      },
+  _count: {
+    select: {
+      rules: true,
+    },
+  },
+},
     });
     
     res.json({ account });
