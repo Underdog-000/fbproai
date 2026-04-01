@@ -16,19 +16,35 @@ const prisma = new PrismaClient();
 async function getAccessToken(adAccountId) {
   const account = await prisma.adAccount.findUnique({
     where: { id: adAccountId },
-    select: { accessToken: true, tokenExpiresAt: true },
+    select: {
+      id: true,
+      facebookConnection: {
+        select: {
+          accessToken: true,
+          tokenExpiresAt: true,
+          status: true,
+        },
+      },
+    },
   });
-  
+
   if (!account) {
     throw new Error('Account not found');
   }
-  
-  // Проверяем срок действия токена
-  if (new Date() > account.tokenExpiresAt) {
+
+  if (!account.facebookConnection) {
+    throw new Error('Facebook connection not found');
+  }
+
+  if (account.facebookConnection.status !== 'active') {
+    throw new Error('Facebook connection is not active');
+  }
+
+  if (new Date() > account.facebookConnection.tokenExpiresAt) {
     throw new Error('Access token expired');
   }
-  
-  return decrypt(account.accessToken);
+
+  return decrypt(account.facebookConnection.accessToken);
 }
 
 /**
