@@ -7,6 +7,7 @@ import cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
 import config from './config/index.js';
 import ruleTemplateRoutes from './routes/rule-templates.js'
+import campaignRuleRoutes from './routes/campaign-rules.js'
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -39,7 +40,8 @@ if (config.nodeEnv === 'development') {
 app.use('/api/auth', authRoutes);
 app.use('/api/accounts', accountRoutes);
 app.use('/api/rules', rulesRoutes);
-app.use('/api/rule-templates', ruleTemplateRoutes)
+app.use('/api/rule-templates', ruleTemplateRoutes);
+app.use('/api/campaign-rules', campaignRuleRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
