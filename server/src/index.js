@@ -101,193 +101,280 @@ cron.schedule(config.cron.statsUpdate, async () => {
   }
 });
 
+
 /**
- * Проверка правил автоматизации
+ * Проверка новых ROI-правил
  * Запускается каждые 30 минут
  */
 cron.schedule(config.cron.rulesCheck, async () => {
-  console.log('[CRON] Starting rules check...');
-  
+  console.log('[CRON] Starting campaign rules check...');
+
   try {
-    const rules = await prisma.rule.findMany({
+    const campaignRules = await prisma.campaignRule.findMany({
       where: { isActive: true },
-      include: { adAccount: true },
+      include: {
+        adAccount: true,
+        ruleTemplate: true,
+      },
     });
-    
-    for (const rule of rules) {
+
+    for (const campaignRule of campaignRules) {
       try {
-        // Проверяем cooldown
-        if (rule.lastExecutedAt) {
-          const cooldownEnd = new Date(rule.lastExecutedAt.getTime() + rule.cooldownMinutes * 60 * 1000);
+        const cooldownMinutes = campaignRule.ruleTemplate?.cooldownMinutes || 60;
+
+        if (campaignRule.lastExecutedAt) {
+          const cooldownEnd = new Date(
+            campaignRule.lastExecutedAt.getTime() + cooldownMinutes * 60 * 1000
+          );
+
           if (new Date() < cooldownEnd) {
-            console.log(`[CRON] Rule ${rule.id} still in cooldown, skipping`);
+            console.log(
+              `[CRON] CampaignRule ${campaignRule.id} still in cooldown, skipping`
+            );
+
+            await prisma.campaignRule.update({
+              where: { id: campaignRule.id },
+              data: {
+                lastEvaluationAt: new Date(),
+                lastResult: 'cooldown',
+              },
+            });
+
             continue;
           }
         }
-        
-        // Получаем метрики сущности
-        const condition = JSON.parse(rule.condition);
-        const entityType = rule.entityType;
-        
-        // Получаем все сущности данного типа
-        let entities;
-        if (entityType === 'ad') {
-          entities = await prisma.ad.findMany({
-            where: { adAccountId: rule.adAccountId },
+
+        const campaign = await prisma.campaign.findFirst({
+          where: {
+            adAccountId: campaignRule.adAccountId,
+            campaignId: campaignRule.campaignId,
+          },
+        });
+
+        if (!campaign) {
+          await prisma.campaignRule.update({
+            where: { id: campaignRule.id },
+            data: {
+              lastEvaluationAt: new Date(),
+              lastResult: 'campaign_not_found',
+            },
           });
-        } else if (entityType === 'adset') {
-          entities = await prisma.adSet.findMany({
-            where: { adAccountId: rule.adAccountId },
-          });
-        } else if (entityType === 'campaign') {
-          entities = await prisma.campaign.findMany({
-            where: { adAccountId: rule.adAccountId },
-          });
+          continue;
         }
-        
-        // Проверяем каждую сущность
+
+        let entities: any[] = [];
+
+        if (campaignRule.actionScope === 'adset') {
+          entities = await prisma.adSet.findMany({
+            where: {
+              adAccountId: campaignRule.adAccountId,
+              campaignId: campaign.id,
+            },
+          });
+        } else if (campaignRule.actionScope === 'ad') {
+          const adSets = await prisma.adSet.findMany({
+            where: {
+              adAccountId: campaignRule.adAccountId,
+              campaignId: campaign.id,
+            },
+            select: { id: true },
+          });
+
+          const adSetIds = adSets.map((item) => item.id);
+
+          entities = adSetIds.length
+            ? await prisma.ad.findMany({
+                where: {
+                  adAccountId: campaignRule.adAccountId,
+                  adSetId: { in: adSetIds },
+                },
+              })
+            : [];
+        } else {
+          await prisma.campaignRule.update({
+            where: { id: campaignRule.id },
+            data: {
+              lastEvaluationAt: new Date(),
+              lastResult: 'unsupported_scope',
+            },
+          });
+          continue;
+        }
+
+        if (!entities.length) {
+          await prisma.campaignRule.update({
+            where: { id: campaignRule.id },
+            data: {
+              lastEvaluationAt: new Date(),
+              lastResult: 'no_entities',
+            },
+          });
+          continue;
+        }
+
+        let actionsTaken = 0;
+
         for (const entity of entities) {
-          const entityId = entity[entityType === 'ad' ? 'adId' : entityType === 'adset' ? 'adSetId' : 'campaignId'];
-          
-          // Получаем последние метрики
+          const entityType = campaignRule.actionScope;
+          const entityId =
+            entityType === 'adset' ? entity.adSetId : entity.adId;
+
           const metrics = await prisma.metricSnapshot.findFirst({
             where: {
-              adAccountId: rule.adAccountId,
+              adAccountId: campaignRule.adAccountId,
               entityType,
               entityId,
             },
             orderBy: { date: 'desc' },
           });
-          
-          if (!metrics) continue;
-          
-          // Проверяем условие
-          let conditionMet = false;
-          const field = condition.field;
-          const operator = condition.operator;
-          const value = condition.value;
-          const metricValue = metrics[field];
-          
-          if (operator === 'greater_than') {
-            conditionMet = metricValue > value;
-          } else if (operator === 'less_than') {
-            conditionMet = metricValue < value;
-          } else if (operator === 'equals') {
-            conditionMet = metricValue === value;
+
+          if (!metrics) {
+            continue;
           }
-          
-          // Проверяем дополнительное условие (если есть)
-          if (conditionMet && condition.additionalCondition) {
-            const addField = condition.additionalCondition.field;
-            const addOperator = condition.additionalCondition.operator;
-            const addValue = condition.additionalCondition.value;
-            const addMetricValue = metrics[addField];
-            
-            if (addOperator === 'equals') {
-              conditionMet = addMetricValue === addValue;
-            } else if (addOperator === 'greater_than') {
-              conditionMet = addMetricValue > addValue;
-            } else if (addOperator === 'less_than') {
-              conditionMet = addMetricValue < addValue;
-            }
+
+          const realCpl = Number(metrics.cpl || 0);
+          const thresholdCpl = Number(campaignRule.calculatedCplThreshold || 0);
+
+          let shouldAct = false;
+
+          if (campaignRule.actionType === 'pause') {
+            shouldAct = realCpl > thresholdCpl;
+          } else if (campaignRule.actionType === 'enable') {
+            shouldAct = realCpl <= thresholdCpl;
           }
-          
-          // Выполняем действие если условие выполнено
-          if (conditionMet) {
-            const action = rule.action;
-            
-            // Проверяем, применимо ли действие
-            if (action === 'pause' && entity.status === 'PAUSED') {
-              console.log(`[CRON] Entity ${entityId} already paused, skipping`);
-              continue;
-            }
-            if (action === 'enable' && entity.status === 'ACTIVE') {
-              console.log(`[CRON] Entity ${entityId} already active, skipping`);
-              continue;
-            }
-            
-            console.log(`[CRON] Rule ${rule.id}: ${action} ${entityType} ${entityId}`);
-            
-            try {
-              await updateEntityStatus(entityType, entityId, action === 'pause' ? 'PAUSED' : 'ACTIVE', rule.adAccountId);
-              
-              // Логируем выполнение
-              await prisma.ruleExecution.create({
-                data: {
-                  ruleId: rule.id,
-                  adAccountId: rule.adAccountId,
-                  entityType,
-                  entityId,
-                  entityName: entity.name,
-                  conditionMet: true,
-                  actionTaken: action,
-                  result: 'success',
-                  details: JSON.stringify({ metrics, condition }),
-                },
-              });
-              
-              // Обновляем lastExecutedAt
-              await prisma.rule.update({
-                where: { id: rule.id },
-                data: { lastExecutedAt: new Date() },
-              });
-              
-            } catch (error) {
-              console.error(`[CRON] Failed to execute action:`, error.message);
-              
-              await prisma.ruleExecution.create({
-                data: {
-                  ruleId: rule.id,
-                  adAccountId: rule.adAccountId,
-                  entityType,
-                  entityId,
-                  entityName: entity.name,
-                  conditionMet: true,
-                  actionTaken: action,
-                  result: 'failed',
-                  details: error.message,
-                },
-              });
-            }
+
+          if (!shouldAct) {
+            continue;
+          }
+
+          const targetStatus =
+            campaignRule.actionType === 'pause' ? 'PAUSED' : 'ACTIVE';
+
+          if (entity.status === targetStatus) {
+            continue;
+          }
+
+          try {
+            await updateEntityStatus(
+              entityType,
+              entityId,
+              targetStatus,
+              campaignRule.adAccountId
+            );
+
+            await prisma.campaignRuleExecution.create({
+              data: {
+                campaignRuleId: campaignRule.id,
+                adAccountId: campaignRule.adAccountId,
+                campaignId: campaignRule.campaignId,
+                entityType,
+                entityId,
+                entityName: entity.name,
+                realCpl,
+                thresholdCpl,
+                actionTaken: campaignRule.actionType,
+                result: 'success',
+                details: JSON.stringify({
+                  metricDate: metrics.date,
+                  spend: metrics.spend,
+                  leads: metrics.leads,
+                  cpl: metrics.cpl,
+                }),
+              },
+            });
+
+            actionsTaken += 1;
+          } catch (error: any) {
+            console.error(
+              `[CRON] Failed to execute campaign rule ${campaignRule.id} on ${entityType} ${entityId}:`,
+              error.message
+            );
+
+            await prisma.campaignRuleExecution.create({
+              data: {
+                campaignRuleId: campaignRule.id,
+                adAccountId: campaignRule.adAccountId,
+                campaignId: campaignRule.campaignId,
+                entityType,
+                entityId,
+                entityName: entity.name,
+                realCpl,
+                thresholdCpl,
+                actionTaken: campaignRule.actionType,
+                result: 'failed',
+                details: error.message,
+              },
+            });
           }
         }
-        
-      } catch (error) {
-        console.error(`[CRON] Failed to process rule ${rule.id}:`, error.message);
+
+        await prisma.campaignRule.update({
+          where: { id: campaignRule.id },
+          data: {
+            lastEvaluationAt: new Date(),
+            lastExecutedAt: actionsTaken > 0 ? new Date() : campaignRule.lastExecutedAt,
+            lastResult: actionsTaken > 0 ? `actions_${actionsTaken}` : 'no_action',
+          },
+        });
+      } catch (error: any) {
+        console.error(
+          `[CRON] Failed to process campaign rule ${campaignRule.id}:`,
+          error.message
+        );
+
+        await prisma.campaignRule.update({
+          where: { id: campaignRule.id },
+          data: {
+            lastEvaluationAt: new Date(),
+            lastResult: `error:${error.message}`,
+          },
+        }).catch(() => {});
       }
     }
-    
-    console.log('[CRON] Rules check completed');
+
+    console.log('[CRON] Campaign rules check completed');
   } catch (error) {
-    console.error('[CRON] Rules check failed:', error);
+    console.error('[CRON] Campaign rules check failed:', error);
   }
 });
 
 /**
- * Проверка токенов
+ * Проверка токенов подключений Facebook
  * Запускается раз в день в 9:00
  */
 cron.schedule(config.cron.tokenCheck, async () => {
   console.log('[CRON] Starting token check...');
   
   try {
-    const accounts = await prisma.adAccount.findMany({
+    const connections = await prisma.facebookConnection.findMany({
       where: { status: 'active' },
+      include: {
+        adAccounts: {
+          select: {
+            accountId: true,
+          },
+        },
+      },
     });
     
     const warningThreshold = 7 * 24 * 60 * 60 * 1000; // 7 дней
     
-    for (const account of accounts) {
-      const timeUntilExpiry = account.tokenExpiresAt.getTime() - Date.now();
+    for (const connection of connections) {
+      const timeUntilExpiry = connection.tokenExpiresAt.getTime() - Date.now();
       
       if (timeUntilExpiry < 0) {
-        console.log(`[CRON] Token expired for account ${account.accountId}`);
-        await prisma.adAccount.update({
-          where: { id: account.id },
+        console.log(
+          `[CRON] Token expired for connection ${connection.facebookUserId}`
+        );
+
+        await prisma.facebookConnection.update({
+          where: { id: connection.id },
           data: { status: 'expired' },
         });
       } else if (timeUntilExpiry < warningThreshold) {
-        console.log(`[CRON] Token expiring soon for account ${account.accountId}`);
+        console.log(
+          `[CRON] Token expiring soon for connection ${connection.facebookUserId}`
+        );
         // TODO: Отправить уведомление пользователю
       }
     }
