@@ -22,6 +22,7 @@ const Accounts: React.FC = () => {
 
   const [syncingId, setSyncingId] = useState<string | null>(null)
   const [isSyncingAll, setIsSyncingAll] = useState(false)
+  const [syncingConnectionId, setSyncingConnectionId] = useState<string | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['accounts'],
@@ -109,6 +110,41 @@ const Accounts: React.FC = () => {
     syncMutation.mutate(accountId)
   }
 
+  const handleSyncConnection = async (connectionId: string, adAccounts: any[]) => {
+  if (!adAccounts.length || syncingConnectionId === connectionId) return
+
+  setSyncingConnectionId(connectionId)
+
+  let successCount = 0
+  let failedCount = 0
+  const failedAccounts: string[] = []
+
+  try {
+    for (const account of adAccounts) {
+      try {
+        await api.post(`/accounts/${account.accountId}/sync`)
+        successCount++
+      } catch (error) {
+        failedCount++
+        failedAccounts.push(account.name || account.accountId)
+        console.error(`Failed to sync account ${account.accountId}:`, error)
+      }
+    }
+
+    await queryClient.invalidateQueries({ queryKey: ['accounts'] })
+
+    if (failedCount === 0) {
+      alert(`Синхронизация подключения завершена. Успешно: ${successCount}`)
+    } else {
+      alert(
+        `Синхронизация подключения завершена.\nУспешно: ${successCount}\nС ошибкой: ${failedCount}\n\nПроблемные аккаунты:\n${failedAccounts.join('\n')}`
+      )
+    }
+  } finally {
+    setSyncingConnectionId(null)
+  }
+}
+  
   const handleSyncAll = async () => {
     if (!allAccounts.length || isSyncingAll) return
 
@@ -308,18 +344,32 @@ const Accounts: React.FC = () => {
       : '—'}
   </div>
 
-  <button
-    onClick={() =>
-      handleDeleteConnection(connection.id, connection.facebookName)
-    }
-    disabled={deleteConnectionMutation.isPending}
-    className="btn-danger flex items-center space-x-2"
-  >
-    <Trash2 className="h-4 w-4" />
-    <span>Удалить подключение</span>
-  </button>
+  <div className="flex items-center gap-2">
+    <button
+      onClick={() => handleSyncConnection(connection.id, adAccounts)}
+      disabled={syncingConnectionId === connection.id || adAccounts.length === 0}
+      className="btn-secondary flex items-center space-x-2"
+    >
+      {syncingConnectionId === connection.id ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <RefreshCw className="h-4 w-4" />
+      )}
+      <span>Синхронизировать подключение</span>
+    </button>
+
+    <button
+      onClick={() =>
+        handleDeleteConnection(connection.id, connection.facebookName)
+      }
+      disabled={deleteConnectionMutation.isPending}
+      className="btn-danger flex items-center space-x-2"
+    >
+      <Trash2 className="h-4 w-4" />
+      <span>Удалить подключение</span>
+    </button>
+  </div>
 </div>
-                  </div>
                 </div>
 
                 <div className="p-6 space-y-4">
