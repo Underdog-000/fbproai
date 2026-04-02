@@ -53,7 +53,8 @@ const Rules: React.FC = () => {
     campaignName: '',
   })
 
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; campaignName?: string } | null>(null)
+  const [deleteRuleTarget, setDeleteRuleTarget] = useState<{ id: string; campaignName?: string } | null>(null)
+  const [deleteTemplateTarget, setDeleteTemplateTarget] = useState<{ id: string; name?: string } | null>(null)
 
   const showNotice = (type: 'success' | 'error', message: string) => {
     setNotice({ type, message })
@@ -94,35 +95,25 @@ const Rules: React.FC = () => {
     [connections]
   )
 
-  const handleApplyAccountChange = (adAccountId: string) => {
-  setApplyForm({
-    adAccountId,
-    campaignId: '',
-    campaignName: '',
-  })
-}
-
-  const handleApplyAccountChange = (adAccountId: string) => {
-  setApplyForm({
-    adAccountId,
-    campaignId: '',
-    campaignName: '',
-  })
-}
-
-  const handleApplyCampaignChange = (campaignId: string) => {
-  const campaign = availableCampaigns.find((item: any) => item.campaignId === campaignId)
-
-  setApplyForm((prev) => ({
-    ...prev,
-    campaignId,
-    campaignName: campaign?.name || '',
-  }))
-}
-
-  
   const templates = templatesData?.templates || []
   const campaignRules = campaignRulesData?.campaignRules || []
+
+  const selectedApplyAccount = useMemo(
+    () => allAccounts.find((account: any) => account.id === applyForm.adAccountId) || null,
+    [allAccounts, applyForm.adAccountId]
+  )
+
+  const { data: applyAccountData, isLoading: applyCampaignsLoading } = useQuery({
+    queryKey: ['rules-apply-campaigns', selectedApplyAccount?.accountId],
+    queryFn: async () => {
+      if (!selectedApplyAccount?.accountId) return null
+      const response = await api.get(`/accounts/${selectedApplyAccount.accountId}`)
+      return response.data
+    },
+    enabled: isApplyModalOpen && !!selectedApplyAccount?.accountId,
+  })
+
+  const availableCampaigns = applyAccountData?.account?.campaigns || []
 
   const createTemplateMutation = useMutation({
     mutationFn: async (payload: any) => {
@@ -192,23 +183,24 @@ const Rules: React.FC = () => {
   })
 
   const deleteTemplateMutation = useMutation({
-  mutationFn: async (templateId: string) => {
-    const response = await api.delete(`/rule-templates/${templateId}`)
-    return response.data
-  },
-  onSuccess: async () => {
-    await queryClient.invalidateQueries({ queryKey: ['rule-templates'] })
-    showNotice('success', 'Шаблон удалён')
-  },
-  onError: (error: any) => {
-    const message =
-      error?.response?.data?.message ||
-      error?.message ||
-      'Ошибка удаления шаблона'
-    showNotice('error', message)
-  },
-})
-  
+    mutationFn: async (templateId: string) => {
+      const response = await api.delete(`/rule-templates/${templateId}`)
+      return response.data
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['rule-templates'] })
+      setDeleteTemplateTarget(null)
+      showNotice('success', 'Шаблон удалён')
+    },
+    onError: (error: any) => {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Ошибка удаления шаблона'
+      showNotice('error', message)
+    },
+  })
+
   const deleteCampaignRuleMutation = useMutation({
     mutationFn: async (ruleId: string) => {
       const response = await api.delete(`/campaign-rules/${ruleId}`)
@@ -216,7 +208,7 @@ const Rules: React.FC = () => {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['campaign-rules'] })
-      setDeleteTarget(null)
+      setDeleteRuleTarget(null)
       showNotice('success', 'Campaign rule удалён')
     },
     onError: (error: any) => {
@@ -227,14 +219,7 @@ const Rules: React.FC = () => {
       showNotice('error', message)
     },
   })
-const handleDeleteTemplate = (template: any) => {
-  if ((template._count?.campaignRules || 0) > 0) {
-    showNotice('error', 'Нельзя удалить шаблон, который уже применён к кампаниям')
-    return
-  }
 
-  deleteTemplateMutation.mutate(template.id)
-}
   const handleRefresh = async () => {
     await Promise.all([refetchTemplates(), refetchCampaignRules()])
     showNotice('success', 'Данные обновлены')
@@ -289,13 +274,31 @@ const handleDeleteTemplate = (template: any) => {
     setIsApplyModalOpen(true)
   }
 
+  const handleApplyAccountChange = (adAccountId: string) => {
+    setApplyForm({
+      adAccountId,
+      campaignId: '',
+      campaignName: '',
+    })
+  }
+
+  const handleApplyCampaignChange = (campaignId: string) => {
+    const campaign = availableCampaigns.find((item: any) => item.campaignId === campaignId)
+
+    setApplyForm((prev) => ({
+      ...prev,
+      campaignId,
+      campaignName: campaign?.name || '',
+    }))
+  }
+
   const submitApplyTemplate = () => {
     if (!selectedTemplate) return
 
     if (!applyForm.adAccountId || !applyForm.campaignId || !applyForm.campaignName) {
-  showNotice('error', 'Выберите аккаунт и кампанию')
-  return
-}
+      showNotice('error', 'Выберите аккаунт и кампанию')
+      return
+    }
 
     applyTemplateMutation.mutate({
       templateId: selectedTemplate.id,
@@ -314,7 +317,16 @@ const handleDeleteTemplate = (template: any) => {
   }
 
   const handleDeleteCampaignRule = (ruleId: string, campaignName?: string) => {
-    setDeleteTarget({ id: ruleId, campaignName })
+    setDeleteRuleTarget({ id: ruleId, campaignName })
+  }
+
+  const handleDeleteTemplate = (template: any) => {
+    if ((template._count?.campaignRules || 0) > 0) {
+      showNotice('error', 'Нельзя удалить шаблон, который уже применён к кампаниям')
+      return
+    }
+
+    setDeleteTemplateTarget({ id: template.id, name: template.name })
   }
 
   const isLoading = accountsLoading || templatesLoading || campaignRulesLoading
@@ -427,28 +439,28 @@ const handleDeleteTemplate = (template: any) => {
                           {template.sourceType}
                         </div>
                         <div className="mt-2 text-sm text-gray-500">
-  Применений: {template._count?.campaignRules || 0}
-</div>
+                          Применений: {template._count?.campaignRules || 0}
+                        </div>
                       </div>
 
                       <div className="flex items-center space-x-2">
-  <button
-    className="btn-secondary"
-    onClick={() => handleApplyTemplate(template)}
-    disabled={applyTemplateMutation.isPending}
-  >
-    Применить к РК
-  </button>
+                        <button
+                          className="btn-secondary"
+                          onClick={() => handleApplyTemplate(template)}
+                          disabled={applyTemplateMutation.isPending}
+                        >
+                          Применить к РК
+                        </button>
 
-  <button
-    className="btn-danger flex items-center space-x-2"
-    onClick={() => handleDeleteTemplate(template)}
-    disabled={deleteTemplateMutation.isPending}
-  >
-    <Trash2 className="h-4 w-4" />
-    <span>Удалить</span>
-  </button>
-</div>
+                        <button
+                          className="btn-danger flex items-center space-x-2"
+                          onClick={() => handleDeleteTemplate(template)}
+                          disabled={deleteTemplateMutation.isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span>Удалить</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -664,48 +676,53 @@ const handleDeleteTemplate = (template: any) => {
             </div>
 
             <div className="px-6 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
-             <div>
-  <label className="block text-sm font-medium text-gray-700 mb-2">Рекламный аккаунт</label>
-  <select
-    value={applyForm.adAccountId}
-    onChange={(e) => handleApplyAccountChange(e.target.value)}
-    className="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white"
-  >
-    {allAccounts.map((account: any) => (
-      <option key={account.id} value={account.id}>
-        {account.name} ({account.accountId})
-      </option>
-    ))}
-  </select>
-</div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Рекламный аккаунт</label>
+                <select
+                  value={applyForm.adAccountId}
+                  onChange={(e) => handleApplyAccountChange(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white"
+                >
+                  {allAccounts.map((account: any) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name} ({account.accountId})
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-<div>
-  <label className="block text-sm font-medium text-gray-700 mb-2">Кампания из РК</label>
-  <select
-    value={applyForm.campaignId}
-    onChange={(e) => handleApplyCampaignChange(e.target.value)}
-    className="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white"
-    disabled={applyCampaignsLoading || availableCampaigns.length === 0}
-  >
-    <option value="">
-      {applyCampaignsLoading ? 'Загрузка кампаний...' : availableCampaigns.length ? 'Выберите кампанию' : 'Нет кампаний'}
-    </option>
-    {availableCampaigns.map((campaign: any) => (
-      <option key={campaign.id} value={campaign.campaignId}>
-        {campaign.name}
-      </option>
-    ))}
-  </select>
-</div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Кампания из РК</label>
+                <select
+                  value={applyForm.campaignId}
+                  onChange={(e) => handleApplyCampaignChange(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white"
+                  disabled={applyCampaignsLoading || availableCampaigns.length === 0}
+                >
+                  <option value="">
+                    {applyCampaignsLoading
+                      ? 'Загрузка кампаний...'
+                      : availableCampaigns.length
+                      ? 'Выберите кампанию'
+                      : 'Нет кампаний'}
+                  </option>
+                  {availableCampaigns.map((campaign: any) => (
+                    <option key={campaign.id} value={campaign.campaignId}>
+                      {campaign.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-<div>
-  <label className="block text-sm font-medium text-gray-700 mb-2">Название кампании</label>
-  <input
-    value={applyForm.campaignName}
-    readOnly
-    className="w-full rounded-lg border border-gray-300 px-3 py-2 bg-gray-50 text-gray-600"
-  />
-</div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Название кампании</label>
+                <input
+                  value={applyForm.campaignName}
+                  readOnly
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 bg-gray-50 text-gray-600"
+                />
+              </div>
+            </div>
 
             <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
               <button
@@ -717,7 +734,7 @@ const handleDeleteTemplate = (template: any) => {
               </button>
               <button
                 onClick={submitApplyTemplate}
-                disabled={applyTemplateMutation.isPending}
+                disabled={applyTemplateMutation.isPending || !applyForm.campaignId}
                 className="btn-primary flex items-center space-x-2"
               >
                 {applyTemplateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -728,13 +745,13 @@ const handleDeleteTemplate = (template: any) => {
         </div>
       )}
 
-      {deleteTarget && (
+      {deleteRuleTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
               <h3 className="text-lg font-semibold text-gray-900">Удалить правило</h3>
               <button
-                onClick={() => setDeleteTarget(null)}
+                onClick={() => setDeleteRuleTarget(null)}
                 disabled={deleteCampaignRuleMutation.isPending}
                 className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
               >
@@ -744,24 +761,65 @@ const handleDeleteTemplate = (template: any) => {
 
             <div className="px-6 py-4">
               <p className="text-sm text-gray-600">
-                Удалить campaign rule{deleteTarget.campaignName ? ` для «${deleteTarget.campaignName}»` : ''}?
+                Удалить campaign rule{deleteRuleTarget.campaignName ? ` для «${deleteRuleTarget.campaignName}»` : ''}?
               </p>
             </div>
 
             <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
               <button
-                onClick={() => setDeleteTarget(null)}
+                onClick={() => setDeleteRuleTarget(null)}
                 disabled={deleteCampaignRuleMutation.isPending}
                 className="btn-secondary"
               >
                 Отмена
               </button>
               <button
-                onClick={() => deleteCampaignRuleMutation.mutate(deleteTarget.id)}
+                onClick={() => deleteCampaignRuleMutation.mutate(deleteRuleTarget.id)}
                 disabled={deleteCampaignRuleMutation.isPending}
                 className="btn-danger flex items-center space-x-2"
               >
                 {deleteCampaignRuleMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                <span>Удалить</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTemplateTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+              <h3 className="text-lg font-semibold text-gray-900">Удалить шаблон</h3>
+              <button
+                onClick={() => setDeleteTemplateTarget(null)}
+                disabled={deleteTemplateMutation.isPending}
+                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-4">
+              <p className="text-sm text-gray-600">
+                Удалить шаблон{deleteTemplateTarget.name ? ` «${deleteTemplateTarget.name}»` : ''}?
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+              <button
+                onClick={() => setDeleteTemplateTarget(null)}
+                disabled={deleteTemplateMutation.isPending}
+                className="btn-secondary"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={() => deleteTemplateMutation.mutate(deleteTemplateTarget.id)}
+                disabled={deleteTemplateMutation.isPending}
+                className="btn-danger flex items-center space-x-2"
+              >
+                {deleteTemplateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 <span>Удалить</span>
               </button>
             </div>
@@ -774,7 +832,7 @@ const handleDeleteTemplate = (template: any) => {
         <ul className="text-sm text-blue-800 space-y-1">
           <li>• Шаблон хранит offer, payout, approve rate и target ROI</li>
           <li>• Применённое правило работает на уровне конкретной кампании</li>
-          <li>• Сейчас payout и approve rate вводятся вручную</li>
+          <li>• Для применения из Rules теперь выбирается реальная кампания из РК</li>
           <li>• Позже источник данных можно переключить на PP API</li>
         </ul>
       </div>
