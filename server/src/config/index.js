@@ -37,11 +37,12 @@ const config = {
   
   // Cron расписания
   cron: {
-  statsUpdate: '0 */6 * * *',        // Каждые 6 часов
-  rulesCheck: '*/30 * * * *',        // Каждые 30 минут
-  aiAnalysis: '0 */2 * * *',         // Каждые 2 часа
-  tokenCheck: '0 9 * * *',           // Раз в день в 9:00
-},
+    unifiedDataCycle: '*/30 * * * *', // Каждые 30 минут: sync + rules
+    statsUpdate: '*/30 * * * *',      // alias для безопасного перехода
+    rulesCheck: '*/30 * * * *',       // alias для безопасного перехода
+    aiAnalysis: '0 */2 * * *',
+    tokenCheck: '0 9 * * *',
+  },
   
   // Лимиты
   limits: {
@@ -59,7 +60,6 @@ const config = {
   },
 };
 
-// Валидация обязательных переменных в production
 if (config.nodeEnv === 'production') {
   const required = ['JWT_SECRET', 'FACEBOOK_APP_ID', 'FACEBOOK_APP_SECRET', 'ENCRYPTION_KEY'];
   const missing = required.filter(key => !process.env[key]);
