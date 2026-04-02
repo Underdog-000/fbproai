@@ -46,14 +46,14 @@ const Campaigns: React.FC = () => {
       return response.data
     },
   })
-  
+
   const { data: campaignRulesData } = useQuery({
-  queryKey: ['campaign-rules'],
-  queryFn: async () => {
-    const response = await api.get('/campaign-rules')
-    return response.data
-  },
-})
+    queryKey: ['campaign-rules'],
+    queryFn: async () => {
+      const response = await api.get('/campaign-rules')
+      return response.data
+    },
+  })
 
   const connections = accountsData?.connections || []
   const templates = templatesData?.templates || []
@@ -129,15 +129,15 @@ const Campaigns: React.FC = () => {
   const campaigns = accountData?.account?.campaigns || []
 
   const appliedRulesByCampaignId = useMemo(() => {
-  if (!selectedAdAccount?.id) return new Map<string, number>()
+    if (!selectedAdAccount?.id) return new Map<string, number>()
 
-  return campaignRules.reduce((acc: Map<string, number>, rule: any) => {
-    if (rule.adAccount?.id === selectedAdAccount.id) {
-      acc.set(rule.campaignId, (acc.get(rule.campaignId) || 0) + 1)
-    }
-    return acc
-  }, new Map<string, number>())
-}, [campaignRules, selectedAdAccount?.id])
+    return campaignRules.reduce((acc: Map<string, number>, rule: any) => {
+      if (rule.adAccount?.id === selectedAdAccount.id) {
+        acc.set(rule.campaignId, (acc.get(rule.campaignId) || 0) + 1)
+      }
+      return acc
+    }, new Map<string, number>())
+  }, [campaignRules, selectedAdAccount?.id])
 
   const handleRefresh = async () => {
     if (!selectedAdAccountId || isRefreshing) return
@@ -147,6 +147,7 @@ const Campaigns: React.FC = () => {
     try {
       await api.post(`/accounts/${selectedAdAccountId}/sync`)
       await queryClient.invalidateQueries({ queryKey: ['accounts'] })
+      await queryClient.invalidateQueries({ queryKey: ['campaign-rules'] })
       await refetch()
       alert('Кампании обновлены')
     } catch (error: any) {
@@ -384,42 +385,48 @@ const Campaigns: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-  {campaigns.map((campaign: any) => {
-    const appliedRulesCount = appliedRulesByCampaignId.get(campaign.campaignId) || 0
+              {campaigns.map((campaign: any) => {
+                const appliedRulesCount = appliedRulesByCampaignId.get(campaign.campaignId) || 0
 
-    return (
-      <tr key={campaign.id} className="table-row">
-        <td className="table-cell">
-          <div className="flex items-center">
-            <Megaphone className="h-5 w-5 text-gray-400 mr-3" />
-            <div>
-              <span className="font-medium text-gray-900">{campaign.name}</span>
-              {appliedRulesCount > 0 && (
-                <div className="text-xs text-blue-600 mt-1">
-                  Уже есть applied rules: {appliedRulesCount}
-                </div>
-              )}
-            </div>
-          </div>
-        </td>
-        <td className="table-cell text-gray-500">{campaign.campaignId}</td>
-        <td className="table-cell">{getStatusBadge(campaign.status)}</td>
-        <td className="table-cell text-gray-500">{campaign.objective || '—'}</td>
-        <td className="table-cell text-gray-500">
-          {new Date(campaign.updatedTime).toLocaleDateString('ru-RU')}
-        </td>
-        <td className="table-cell">
-          <button
-            onClick={() => openTemplateModal(campaign)}
-            className="btn-secondary"
-          >
-            {appliedRulesCount > 0 ? 'Добавить ещё шаблон' : 'Применить шаблон'}
-          </button>
-        </td>
-      </tr>
-    )
-  })}
-</tbody>
+                return (
+                  <tr key={campaign.id} className="table-row">
+                    <td className="table-cell">
+                      <div className="flex items-center">
+                        <Megaphone className="h-5 w-5 text-gray-400 mr-3" />
+                        <div>
+                          <span className="font-medium text-gray-900">{campaign.name}</span>
+                          {appliedRulesCount > 0 && (
+                            <div className="text-xs text-blue-600 mt-1">
+                              Уже есть applied rules: {appliedRulesCount}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="table-cell text-gray-500">
+                      {campaign.campaignId}
+                    </td>
+                    <td className="table-cell">
+                      {getStatusBadge(campaign.status)}
+                    </td>
+                    <td className="table-cell text-gray-500">
+                      {campaign.objective || '—'}
+                    </td>
+                    <td className="table-cell text-gray-500">
+                      {new Date(campaign.updatedTime).toLocaleDateString('ru-RU')}
+                    </td>
+                    <td className="table-cell">
+                      <button
+                        onClick={() => openTemplateModal(campaign)}
+                        className="btn-secondary"
+                      >
+                        {appliedRulesCount > 0 ? 'Добавить ещё шаблон' : 'Применить шаблон'}
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
           </table>
         </div>
       )}
@@ -578,7 +585,7 @@ const Campaigns: React.FC = () => {
           <li>• Кампании загружаются из выбранного рекламного аккаунта</li>
           <li>• Шаблон применяется к конкретной кампании</li>
           <li>• Выбор шаблона теперь делается через modal</li>
-          <li>• Следующий шаг — показывать applied rule прямо из Campaigns без перехода в Rules</li>
+          <li>• Если на кампании уже есть applied rule, это видно прямо в списке</li>
         </ul>
       </div>
     </div>
