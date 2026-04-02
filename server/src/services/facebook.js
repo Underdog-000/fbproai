@@ -335,8 +335,12 @@ async function syncMetrics(adAccountId, accessToken) {
 async function saveMetrics(adAccountId, entityType, entityId, entityName, insight, date) {
   // Извлекаем конверсии из actions
   const actions = insight.actions || [];
-  const leads = actions.find(a => a.action_type === 'lead')?.value || 0;
-  const conversions = actions.find(a => a.action_type === 'offsite_conversion')?.value || 0;
+
+const leadsRaw = actions.find(a => a.action_type === 'lead')?.value ?? 0;
+const conversionsRaw = actions.find(a => a.action_type === 'offsite_conversion')?.value ?? 0;
+
+const leads = parseInt(leadsRaw, 10) || 0;
+const conversions = parseInt(conversionsRaw, 10) || 0;
   
   // Вычисляем CPL и CPA
   const spend = parseFloat(insight.spend) || 0;
