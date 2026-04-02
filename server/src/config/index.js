@@ -29,7 +29,7 @@ const config = {
   openrouter: {
     apiKey: process.env.OPENROUTER_API_KEY,
     baseUrl: 'https://openrouter.ai/api/v1',
-    defaultModel: 'anthropic/claude-3-haiku', // Быстрая и дешевая модель
+    defaultModel: 'anthropic/claude-3-haiku',
   },
   
   // Шифрование
@@ -37,18 +37,17 @@ const config = {
   
   // Cron расписания
   cron: {
-    statsUpdate: '0 */6 * * *',        // Каждые 6 часов
-    rulesCheck: '*/30 * * * *',        // Каждые 30 минут
-    aiAnalysis: '0 */2 * * *',         // Каждые 2 часа
-    tokenCheck: '0 9 * * *',           // Раз в день в 9:00
+    unifiedDataCycle: '*/30 * * * *', // Каждые 30 минут: sync + rules
+    aiAnalysis: '0 */2 * * *',        // Каждые 2 часа
+    tokenCheck: '0 9 * * *',          // Раз в день в 9:00
   },
   
   // Лимиты
   limits: {
     maxAccountsPerUser: 10,
     maxRulesPerAccount: 50,
-    maxDailyBudgetChange: 30,   // Макс. изменение бюджета в день (%)
-    maxDailyPauseCount: 10,     // Макс. пауз в день
+    maxDailyBudgetChange: 30,
+    maxDailyPauseCount: 10,
     minConfidenceForAutoAction: 0.8,
   },
   
