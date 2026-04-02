@@ -72,6 +72,26 @@ async function facebookApiRequest(endpoint, accessToken, params = {}) {
   }
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchEntityState(entityType, entityId, adAccountId) {
+  const accessToken = await getAccessToken(adAccountId);
+  const response = await facebookApiRequest(`/${entityId}`, accessToken, {
+    fields: 'id,name,status,effective_status',
+  });
+
+  return {
+    entityType,
+    entityId,
+    name: response.name || null,
+    status: response.status || null,
+    effectiveStatus: response.effective_status || null,
+    raw: response,
+  };
+}
+
 /**
  * Синхронизирует все данные аккаунта
  * @param {string} adAccountId - ID аккаунта в нашей БД
@@ -336,11 +356,11 @@ async function saveMetrics(adAccountId, entityType, entityId, entityName, insigh
   // Извлекаем конверсии из actions
   const actions = insight.actions || [];
 
-const leadsRaw = actions.find(a => a.action_type === 'lead')?.value ?? 0;
-const conversionsRaw = actions.find(a => a.action_type === 'offsite_conversion')?.value ?? 0;
+  const leadsRaw = actions.find(a => a.action_type === 'lead')?.value ?? 0;
+  const conversionsRaw = actions.find(a => a.action_type === 'offsite_conversion')?.value ?? 0;
 
-const leads = parseInt(leadsRaw, 10) || 0;
-const conversions = parseInt(conversionsRaw, 10) || 0;
+  const leads = parseInt(leadsRaw, 10) || 0;
+  const conversions = parseInt(conversionsRaw, 10) || 0;
   
   // Вычисляем CPL и CPA
   const spend = parseFloat(insight.spend) || 0;
@@ -377,14 +397,54 @@ const conversions = parseInt(conversionsRaw, 10) || 0;
  */
 export async function updateEntityStatus(entityType, entityId, status, adAccountId) {
   const accessToken = await getAccessToken(adAccountId);
-  
-  await axios.post(`https://graph.facebook.com/${config.facebook.apiVersion}/${entityId}`, {
+
+  const updateResponse = await axios.post(`https://graph.facebook.com/${config.facebook.apiVersion}/${entityId}`, {
     status,
   }, {
     params: { access_token: accessToken },
   });
+
+  let verifiedState = null;
+  let verified = false;
+  let verificationError = null;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      if (attempt > 1) {
+        await sleep(1000);
+      }
+
+      verifiedState = await fetchEntityState(entityType, entityId, adAccountId);
+
+      const currentStatus = verifiedState.status;
+      const effectiveStatus = verifiedState.effectiveStatus;
+
+      if (currentStatus === status || effectiveStatus === status) {
+        verified = true;
+        break;
+      }
+    } catch (error) {
+      verificationError = error.message;
+    }
+  }
+
+  console.log('[FB] updateEntityStatus result:', JSON.stringify({
+    entityType,
+    entityId,
+    requestedStatus: status,
+    apiResponse: updateResponse?.data || null,
+    verified,
+    verifiedState,
+    verificationError,
+  }));
+
+  if (!verified) {
+    throw new Error(
+      `Status verification failed. Requested=${status}, actual=${verifiedState?.status || 'unknown'}, effective=${verifiedState?.effectiveStatus || 'unknown'}${verificationError ? `, verificationError=${verificationError}` : ''}`
+    );
+  }
   
-  // Обновляем в нашей БД
+  // Обновляем в нашей БД только после подтверждения
   const model = entityType === 'campaign' ? prisma.campaign :
                 entityType === 'adset' ? prisma.adSet :
                 prisma.ad;
@@ -397,6 +457,16 @@ export async function updateEntityStatus(entityType, entityId, status, adAccount
     where: { [idField]: entityId },
     data: { status },
   });
+
+  return {
+    ok: true,
+    requestedStatus: status,
+    verified,
+    status: verifiedState?.status || null,
+    effectiveStatus: verifiedState?.effectiveStatus || null,
+    name: verifiedState?.name || null,
+    apiResponse: updateResponse?.data || null,
+  };
 }
 
 /**

@@ -229,6 +229,9 @@ cron.schedule(config.cron.rulesCheck, async () => {
           });
 
           if (!metrics) {
+            console.log(
+              `[CRON] No metrics for CampaignRule ${campaignRule.id} on ${entityType} ${entityId}`
+            );
             continue;
           }
 
@@ -243,6 +246,20 @@ cron.schedule(config.cron.rulesCheck, async () => {
             shouldAct = realCpl <= thresholdCpl;
           }
 
+          console.log('[CRON] Rule evaluation:', JSON.stringify({
+            campaignRuleId: campaignRule.id,
+            campaignId: campaignRule.campaignId,
+            entityType,
+            entityId,
+            entityName: entity.name,
+            currentStatus: entity.status,
+            metricDate: metrics.date,
+            realCpl,
+            thresholdCpl,
+            actionType: campaignRule.actionType,
+            shouldAct,
+          }));
+
           if (!shouldAct) {
             continue;
           }
@@ -251,16 +268,38 @@ cron.schedule(config.cron.rulesCheck, async () => {
             campaignRule.actionType === 'pause' ? 'PAUSED' : 'ACTIVE';
 
           if (entity.status === targetStatus) {
+            console.log(
+              `[CRON] Entity ${entityType} ${entityId} already has target status ${targetStatus}`
+            );
             continue;
           }
 
           try {
-            await updateEntityStatus(
+            console.log('[CRON] Executing action:', JSON.stringify({
+              campaignRuleId: campaignRule.id,
+              entityType,
+              entityId,
+              entityName: entity.name,
+              currentStatus: entity.status,
+              targetStatus,
+              realCpl,
+              thresholdCpl,
+            }));
+
+            const updateResult = await updateEntityStatus(
               entityType,
               entityId,
               targetStatus,
               campaignRule.adAccountId
             );
+
+            console.log('[CRON] Action verified:', JSON.stringify({
+              campaignRuleId: campaignRule.id,
+              entityType,
+              entityId,
+              entityName: entity.name,
+              updateResult,
+            }));
 
             await prisma.campaignRuleExecution.create({
               data: {
@@ -279,6 +318,10 @@ cron.schedule(config.cron.rulesCheck, async () => {
                   spend: metrics.spend,
                   leads: metrics.leads,
                   cpl: metrics.cpl,
+                  requestedStatus: targetStatus,
+                  verifiedStatus: updateResult?.status || null,
+                  verifiedEffectiveStatus: updateResult?.effectiveStatus || null,
+                  apiResponse: updateResult?.apiResponse || null,
                 }),
               },
             });
