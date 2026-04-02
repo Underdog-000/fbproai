@@ -76,6 +76,20 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function getTodayDateRange() {
+  const now = new Date();
+  const yyyy = now.getUTCFullYear();
+  const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(now.getUTCDate()).padStart(2, '0');
+  const dateString = `${yyyy}-${mm}-${dd}`;
+
+  return {
+    since: dateString,
+    until: dateString,
+    date: new Date(`${dateString}T00:00:00.000Z`),
+  };
+}
+
 async function fetchEntityState(entityType, entityId, adAccountId) {
   const accessToken = await getAccessToken(adAccountId);
   const response = await facebookApiRequest(`/${entityId}`, accessToken, {
@@ -152,94 +166,98 @@ export async function syncAccountData(adAccountId) {
   });
   
   for (const adSet of adSets.data || []) {
-  const campaign = await prisma.campaign.findUnique({
-    where: { campaignId: adSet.campaign_id },
-  });
+    const campaign = await prisma.campaign.findUnique({
+      where: { campaignId: adSet.campaign_id },
+    });
 
-  if (!campaign) continue;
+    if (!campaign) continue;
 
-  try {
-    const rawBudget = adSet.daily_budget ?? adSet.lifetime_budget ?? null;
-    const parsedBudget =
-      rawBudget !== null && rawBudget !== undefined && rawBudget !== ''
-        ? parseFloat(rawBudget)
-        : null;
+    try {
+      const rawBudget = adSet.daily_budget ?? adSet.lifetime_budget ?? null;
+      const parsedBudget =
+        rawBudget !== null && rawBudget !== undefined && rawBudget !== ''
+          ? parseFloat(rawBudget)
+          : null;
 
-    await prisma.adSet.upsert({
-      where: { adSetId: adSet.id },
-      update: {
-        name: adSet.name,
-        status: adSet.status,
-        budget: Number.isNaN(parsedBudget) ? null : parsedBudget,
-        bidStrategy: adSet.bid_strategy || null,
-        updatedTime: new Date(adSet.updated_time),
-      },
-      create: {
-        adAccountId,
-        campaignId: campaign.id,
+      await prisma.adSet.upsert({
+        where: { adSetId: adSet.id },
+        update: {
+          name: adSet.name,
+          status: adSet.status,
+          budget: Number.isNaN(parsedBudget) ? null : parsedBudget,
+          bidStrategy: adSet.bid_strategy || null,
+          updatedTime: new Date(adSet.updated_time),
+        },
+        create: {
+          adAccountId,
+          campaignId: campaign.id,
+          adSetId: adSet.id,
+          name: adSet.name,
+          status: adSet.status,
+          budget: Number.isNaN(parsedBudget) ? null : parsedBudget,
+          bidStrategy: adSet.bid_strategy || null,
+          createdTime: new Date(adSet.created_time),
+          updatedTime: new Date(adSet.updated_time),
+        },
+      });
+
+      stats.adSets++;
+    } catch (error) {
+      console.error('Failed to upsert adset:', {
         adSetId: adSet.id,
         name: adSet.name,
-        status: adSet.status,
-        budget: Number.isNaN(parsedBudget) ? null : parsedBudget,
-        bidStrategy: adSet.bid_strategy || null,
-        createdTime: new Date(adSet.created_time),
-        updatedTime: new Date(adSet.updated_time),
-      },
-    });
-
-    stats.adSets++;
-  } catch (error) {
-    console.error('Failed to upsert adset:', {
-      adSetId: adSet.id,
-      name: adSet.name,
-      daily_budget: adSet.daily_budget,
-      lifetime_budget: adSet.lifetime_budget,
-      bid_strategy: adSet.bid_strategy,
-      error: error.message,
-    });
-    throw error;
+        daily_budget: adSet.daily_budget,
+        lifetime_budget: adSet.lifetime_budget,
+        bid_strategy: adSet.bid_strategy,
+        error: error.message,
+      });
+      throw error;
+    }
   }
-}
   
   // Синхронизируем объявления
   const ads = await facebookApiRequest(`/${fbAccountId}/ads`, accessToken, {
-  fields: 'id,name,adset_id,status,created_time,updated_time',
-  limit: 100,
-});
+    fields: 'id,name,adset_id,status,created_time,updated_time',
+    limit: 100,
+  });
   
   for (const ad of ads.data || []) {
-    // Получаем adset из нашей БД
     const adSet = await prisma.adSet.findUnique({
       where: { adSetId: ad.adset_id },
     });
     
     if (adSet) {
       await prisma.ad.upsert({
-  where: { adId: ad.id },
-  update: {
-    name: ad.name,
-    status: ad.status,
-    creativeUrl: null,
-    updatedTime: new Date(ad.updated_time),
-  },
-  create: {
-    adAccountId,
-    adSetId: adSet.id,
-    adId: ad.id,
-    name: ad.name,
-    status: ad.status,
-    creativeUrl: null,
-    createdTime: new Date(ad.created_time),
-    updatedTime: new Date(ad.updated_time),
-  },
-});
+        where: { adId: ad.id },
+        update: {
+          name: ad.name,
+          status: ad.status,
+          creativeUrl: null,
+          updatedTime: new Date(ad.updated_time),
+        },
+        create: {
+          adAccountId,
+          adSetId: adSet.id,
+          adId: ad.id,
+          name: ad.name,
+          status: ad.status,
+          creativeUrl: null,
+          createdTime: new Date(ad.created_time),
+          updatedTime: new Date(ad.updated_time),
+        },
+      });
       stats.ads++;
     }
   }
   
-  // Синхронизируем метрики (за последние 7 дней)
+  // Синхронизируем метрики Today
   const metricsStats = await syncMetrics(adAccountId, accessToken);
   stats.metrics = metricsStats;
+
+  await prisma.adAccount.update({
+    where: { id: adAccountId },
+    data: { lastSyncedAt: new Date() },
+  });
   
   return stats;
 }
@@ -258,18 +276,21 @@ async function syncMetrics(adAccountId, accessToken) {
   
   const fbAccountId = account.accountId;
   let count = 0;
-  
-  // Период для метрик (последние 7 дней)
-  const dateStop = new Date();
-  const dateStart = new Date();
-  dateStart.setDate(dateStart.getDate() - 7);
-  
+
+  const todayRange = getTodayDateRange();
   const timeRange = {
-    since: dateStart.toISOString().split('T')[0],
-    until: dateStop.toISOString().split('T')[0],
+    since: todayRange.since,
+    until: todayRange.until,
   };
+  const snapshotDate = todayRange.date;
+
+  await prisma.metricSnapshot.deleteMany({
+    where: {
+      adAccountId,
+      date: snapshotDate,
+    },
+  });
   
-  // Метрики для запроса
   const fields = [
     'spend',
     'impressions',
@@ -291,7 +312,14 @@ async function syncMetrics(adAccountId, accessToken) {
     });
     
     for (const insight of accountInsights.data || []) {
-      await saveMetrics(adAccountId, 'account', fbAccountId, accountInsights.data[0]?.account_name || 'Account', insight, new Date(timeRange.until));
+      await saveMetrics(
+        adAccountId,
+        'account',
+        fbAccountId,
+        accountInsights.data[0]?.account_name || 'Account',
+        insight,
+        snapshotDate
+      );
       count++;
     }
   } catch (error) {
@@ -307,7 +335,7 @@ async function syncMetrics(adAccountId, accessToken) {
     });
     
     for (const insight of campaignInsights.data || []) {
-      await saveMetrics(adAccountId, 'campaign', insight.campaign_id, insight.campaign_name, insight, new Date(timeRange.until));
+      await saveMetrics(adAccountId, 'campaign', insight.campaign_id, insight.campaign_name, insight, snapshotDate);
       count++;
     }
   } catch (error) {
@@ -323,7 +351,7 @@ async function syncMetrics(adAccountId, accessToken) {
     });
     
     for (const insight of adsetInsights.data || []) {
-      await saveMetrics(adAccountId, 'adset', insight.adset_id, insight.adset_name, insight, new Date(timeRange.until));
+      await saveMetrics(adAccountId, 'adset', insight.adset_id, insight.adset_name, insight, snapshotDate);
       count++;
     }
   } catch (error) {
@@ -339,7 +367,7 @@ async function syncMetrics(adAccountId, accessToken) {
     });
     
     for (const insight of adInsights.data || []) {
-      await saveMetrics(adAccountId, 'ad', insight.ad_id, insight.ad_name, insight, new Date(timeRange.until));
+      await saveMetrics(adAccountId, 'ad', insight.ad_id, insight.ad_name, insight, snapshotDate);
       count++;
     }
   } catch (error) {
@@ -353,7 +381,6 @@ async function syncMetrics(adAccountId, accessToken) {
  * Сохраняет метрики в БД
  */
 async function saveMetrics(adAccountId, entityType, entityId, entityName, insight, date) {
-  // Извлекаем конверсии из actions
   const actions = insight.actions || [];
 
   const leadsRaw = actions.find(a => a.action_type === 'lead')?.value ?? 0;
@@ -362,7 +389,6 @@ async function saveMetrics(adAccountId, entityType, entityId, entityName, insigh
   const leads = parseInt(leadsRaw, 10) || 0;
   const conversions = parseInt(conversionsRaw, 10) || 0;
   
-  // Вычисляем CPL и CPA
   const spend = parseFloat(insight.spend) || 0;
   const cpl = leads > 0 ? spend / leads : 0;
   const cpa = conversions > 0 ? spend / conversions : 0;
@@ -374,8 +400,8 @@ async function saveMetrics(adAccountId, entityType, entityId, entityName, insigh
       entityId,
       entityName,
       spend,
-      impressions: parseInt(insight.impressions) || 0,
-      clicks: parseInt(insight.clicks) || 0,
+      impressions: parseInt(insight.impressions, 10) || 0,
+      clicks: parseInt(insight.clicks, 10) || 0,
       ctr: parseFloat(insight.ctr) || 0,
       cpc: parseFloat(insight.cpc) || 0,
       cpm: parseFloat(insight.cpm) || 0,
@@ -444,7 +470,6 @@ export async function updateEntityStatus(entityType, entityId, status, adAccount
     );
   }
   
-  // Обновляем в нашей БД только после подтверждения
   const model = entityType === 'campaign' ? prisma.campaign :
                 entityType === 'adset' ? prisma.adSet :
                 prisma.ad;
@@ -487,7 +512,6 @@ export async function updateAdSetBudget(adSetId, budget, budgetType, adAccountId
     params: { access_token: accessToken },
   });
   
-  // Обновляем в нашей БД
   await prisma.adSet.update({
     where: { adSetId },
     data: { budget },
@@ -498,4 +522,4 @@ export default {
   syncAccountData,
   updateEntityStatus,
   updateAdSetBudget,
-};
+};","display_url":"https://github.com/Underdog-000/fbproai/commit/0657a349d673971fb06bef02357f6dc88b035c46","display_title":"Verify Meta status after rule actions and add detailed cron logs"}
