@@ -384,44 +384,42 @@ const Campaigns: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {campaigns.map((campaign: any) => (
-                <tr key={campaign.id} className="table-row">
-                  <td className="table-cell">
-  <div className="flex items-center">
-    <Megaphone className="h-5 w-5 text-gray-400 mr-3" />
-    <div>
-      <span className="font-medium text-gray-900">{campaign.name}</span>
-      {appliedRulesCount > 0 && (
-        <div className="text-xs text-blue-600 mt-1">
-          Уже есть applied rules: {appliedRulesCount}
-        </div>
-      )}
-    </div>
-  </div>
-</td>
-                  <td className="table-cell text-gray-500">
-                    {campaign.campaignId}
-                  </td>
-                  <td className="table-cell">
-                    {getStatusBadge(campaign.status)}
-                  </td>
-                  <td className="table-cell text-gray-500">
-                    {campaign.objective || '—'}
-                  </td>
-                  <td className="table-cell text-gray-500">
-                    {new Date(campaign.updatedTime).toLocaleDateString('ru-RU')}
-                  </td>
-                  <td className="table-cell">
-                    <button
-                      onClick={() => openTemplateModal(campaign)}
-                      className="btn-secondary"
-                    >
-                      Применить шаблон
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+  {campaigns.map((campaign: any) => {
+    const appliedRulesCount = appliedRulesByCampaignId.get(campaign.campaignId) || 0
+
+    return (
+      <tr key={campaign.id} className="table-row">
+        <td className="table-cell">
+          <div className="flex items-center">
+            <Megaphone className="h-5 w-5 text-gray-400 mr-3" />
+            <div>
+              <span className="font-medium text-gray-900">{campaign.name}</span>
+              {appliedRulesCount > 0 && (
+                <div className="text-xs text-blue-600 mt-1">
+                  Уже есть applied rules: {appliedRulesCount}
+                </div>
+              )}
+            </div>
+          </div>
+        </td>
+        <td className="table-cell text-gray-500">{campaign.campaignId}</td>
+        <td className="table-cell">{getStatusBadge(campaign.status)}</td>
+        <td className="table-cell text-gray-500">{campaign.objective || '—'}</td>
+        <td className="table-cell text-gray-500">
+          {new Date(campaign.updatedTime).toLocaleDateString('ru-RU')}
+        </td>
+        <td className="table-cell">
+          <button
+            onClick={() => openTemplateModal(campaign)}
+            className="btn-secondary"
+          >
+            {appliedRulesCount > 0 ? 'Добавить ещё шаблон' : 'Применить шаблон'}
+          </button>
+        </td>
+      </tr>
+    )
+  })}
+</tbody>
           </table>
         </div>
       )}
@@ -567,7 +565,7 @@ const Campaigns: React.FC = () => {
                 {isApplyingTemplate && (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 )}
-                <span>{appliedRulesCount > 0 ? 'Добавить ещё шаблон' : 'Применить шаблон'}</span>
+                <span>Применить шаблон</span>
               </button>
             </div>
           </div>
