@@ -307,6 +307,21 @@ router.post('/:templateId/apply', async (req, res) => {
       })
     }
 
+    const existingCampaignRule = await prisma.campaignRule.findFirst({
+      where: {
+        adAccountId,
+        campaignId,
+        ruleTemplateId: template.id,
+      },
+    })
+
+    if (existingCampaignRule) {
+      return res.status(409).json({
+        error: 'Conflict',
+        message: 'This template is already applied to the selected campaign',
+      })
+    }
+
     const calculatedCplThreshold = calculateCplThreshold(
       template.payout,
       template.approveRate,
