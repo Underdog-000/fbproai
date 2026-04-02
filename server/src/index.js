@@ -106,6 +106,8 @@ cron.schedule(config.cron.statsUpdate, async () => {
  * Проверка новых ROI-правил
  * Запускается каждые 30 минут
  */
+console.log('CRON CONFIG DEBUG:', config.cron);
+
 cron.schedule(config.cron.rulesCheck, async () => {
   console.log('[CRON] Starting campaign rules check...');
 
