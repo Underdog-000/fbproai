@@ -231,7 +231,6 @@ const Rules: React.FC = () => {
     setIsCreateModalOpen(true)
   }
 
-  
   const submitCreateTemplate = () => {
     if (
       !templateForm.name ||
