@@ -94,6 +94,33 @@ const Rules: React.FC = () => {
     [connections]
   )
 
+  const handleApplyAccountChange = (adAccountId: string) => {
+  setApplyForm({
+    adAccountId,
+    campaignId: '',
+    campaignName: '',
+  })
+}
+
+  const handleApplyAccountChange = (adAccountId: string) => {
+  setApplyForm({
+    adAccountId,
+    campaignId: '',
+    campaignName: '',
+  })
+}
+
+  const handleApplyCampaignChange = (campaignId: string) => {
+  const campaign = availableCampaigns.find((item: any) => item.campaignId === campaignId)
+
+  setApplyForm((prev) => ({
+    ...prev,
+    campaignId,
+    campaignName: campaign?.name || '',
+  }))
+}
+
+  
   const templates = templatesData?.templates || []
   const campaignRules = campaignRulesData?.campaignRules || []
 
@@ -164,6 +191,24 @@ const Rules: React.FC = () => {
     },
   })
 
+  const deleteTemplateMutation = useMutation({
+  mutationFn: async (templateId: string) => {
+    const response = await api.delete(`/rule-templates/${templateId}`)
+    return response.data
+  },
+  onSuccess: async () => {
+    await queryClient.invalidateQueries({ queryKey: ['rule-templates'] })
+    showNotice('success', 'Шаблон удалён')
+  },
+  onError: (error: any) => {
+    const message =
+      error?.response?.data?.message ||
+      error?.message ||
+      'Ошибка удаления шаблона'
+    showNotice('error', message)
+  },
+})
+  
   const deleteCampaignRuleMutation = useMutation({
     mutationFn: async (ruleId: string) => {
       const response = await api.delete(`/campaign-rules/${ruleId}`)
@@ -182,7 +227,14 @@ const Rules: React.FC = () => {
       showNotice('error', message)
     },
   })
+const handleDeleteTemplate = (template: any) => {
+  if ((template._count?.campaignRules || 0) > 0) {
+    showNotice('error', 'Нельзя удалить шаблон, который уже применён к кампаниям')
+    return
+  }
 
+  deleteTemplateMutation.mutate(template.id)
+}
   const handleRefresh = async () => {
     await Promise.all([refetchTemplates(), refetchCampaignRules()])
     showNotice('success', 'Данные обновлены')
@@ -241,9 +293,9 @@ const Rules: React.FC = () => {
     if (!selectedTemplate) return
 
     if (!applyForm.adAccountId || !applyForm.campaignId || !applyForm.campaignName) {
-      showNotice('error', 'Заполните аккаунт, campaignId и название кампании')
-      return
-    }
+  showNotice('error', 'Выберите аккаунт и кампанию')
+  return
+}
 
     applyTemplateMutation.mutate({
       templateId: selectedTemplate.id,
@@ -374,17 +426,29 @@ const Rules: React.FC = () => {
                           Scope: {template.actionScope} | Action: {template.actionType} | Source:{' '}
                           {template.sourceType}
                         </div>
+                        <div className="mt-2 text-sm text-gray-500">
+  Применений: {template._count?.campaignRules || 0}
+</div>
                       </div>
 
                       <div className="flex items-center space-x-2">
-                        <button
-                          className="btn-secondary"
-                          onClick={() => handleApplyTemplate(template)}
-                          disabled={applyTemplateMutation.isPending}
-                        >
-                          Применить к РК
-                        </button>
-                      </div>
+  <button
+    className="btn-secondary"
+    onClick={() => handleApplyTemplate(template)}
+    disabled={applyTemplateMutation.isPending}
+  >
+    Применить к РК
+  </button>
+
+  <button
+    className="btn-danger flex items-center space-x-2"
+    onClick={() => handleDeleteTemplate(template)}
+    disabled={deleteTemplateMutation.isPending}
+  >
+    <Trash2 className="h-4 w-4" />
+    <span>Удалить</span>
+  </button>
+</div>
                     </div>
                   </div>
                 ))}
@@ -600,39 +664,48 @@ const Rules: React.FC = () => {
             </div>
 
             <div className="px-6 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Рекламный аккаунт</label>
-                <select
-                  value={applyForm.adAccountId}
-                  onChange={(e) => setApplyForm((prev) => ({ ...prev, adAccountId: e.target.value }))}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white"
-                >
-                  {allAccounts.map((account: any) => (
-                    <option key={account.id} value={account.id}>
-                      {account.name} ({account.accountId})
-                    </option>
-                  ))}
-                </select>
-              </div>
+             <div>
+  <label className="block text-sm font-medium text-gray-700 mb-2">Рекламный аккаунт</label>
+  <select
+    value={applyForm.adAccountId}
+    onChange={(e) => handleApplyAccountChange(e.target.value)}
+    className="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white"
+  >
+    {allAccounts.map((account: any) => (
+      <option key={account.id} value={account.id}>
+        {account.name} ({account.accountId})
+      </option>
+    ))}
+  </select>
+</div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Facebook campaignId</label>
-                <input
-                  value={applyForm.campaignId}
-                  onChange={(e) => setApplyForm((prev) => ({ ...prev, campaignId: e.target.value }))}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2"
-                />
-              </div>
+<div>
+  <label className="block text-sm font-medium text-gray-700 mb-2">Кампания из РК</label>
+  <select
+    value={applyForm.campaignId}
+    onChange={(e) => handleApplyCampaignChange(e.target.value)}
+    className="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white"
+    disabled={applyCampaignsLoading || availableCampaigns.length === 0}
+  >
+    <option value="">
+      {applyCampaignsLoading ? 'Загрузка кампаний...' : availableCampaigns.length ? 'Выберите кампанию' : 'Нет кампаний'}
+    </option>
+    {availableCampaigns.map((campaign: any) => (
+      <option key={campaign.id} value={campaign.campaignId}>
+        {campaign.name}
+      </option>
+    ))}
+  </select>
+</div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Название кампании</label>
-                <input
-                  value={applyForm.campaignName}
-                  onChange={(e) => setApplyForm((prev) => ({ ...prev, campaignName: e.target.value }))}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2"
-                />
-              </div>
-            </div>
+<div>
+  <label className="block text-sm font-medium text-gray-700 mb-2">Название кампании</label>
+  <input
+    value={applyForm.campaignName}
+    readOnly
+    className="w-full rounded-lg border border-gray-300 px-3 py-2 bg-gray-50 text-gray-600"
+  />
+</div>
 
             <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
               <button
