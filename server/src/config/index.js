@@ -37,10 +37,11 @@ const config = {
   
   // Cron расписания
   cron: {
-    unifiedDataCycle: '*/30 * * * *', // Каждые 30 минут: sync + rules
-    aiAnalysis: '0 */2 * * *',        // Каждые 2 часа
-    tokenCheck: '0 9 * * *',          // Раз в день в 9:00
-  },
+  statsUpdate: '0 */6 * * *',        // Каждые 6 часов
+  rulesCheck: '*/30 * * * *',        // Каждые 30 минут
+  aiAnalysis: '0 */2 * * *',         // Каждые 2 часа
+  tokenCheck: '0 9 * * *',           // Раз в день в 9:00
+},
   
   // Лимиты
   limits: {
