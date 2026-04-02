@@ -522,4 +522,4 @@ export default {
   syncAccountData,
   updateEntityStatus,
   updateAdSetBudget,
-};","display_url":"https://github.com/Underdog-000/fbproai/commit/0657a349d673971fb06bef02357f6dc88b035c46","display_title":"Verify Meta status after rule actions and add detailed cron logs"}
+};
