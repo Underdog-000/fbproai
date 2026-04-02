@@ -46,9 +46,18 @@ const Campaigns: React.FC = () => {
       return response.data
     },
   })
+  
+  const { data: campaignRulesData } = useQuery({
+  queryKey: ['campaign-rules'],
+  queryFn: async () => {
+    const response = await api.get('/campaign-rules')
+    return response.data
+  },
+})
 
   const connections = accountsData?.connections || []
   const templates = templatesData?.templates || []
+  const campaignRules = campaignRulesData?.campaignRules || []
 
   useEffect(() => {
     if (!connections.length) {
@@ -118,6 +127,17 @@ const Campaigns: React.FC = () => {
   })
 
   const campaigns = accountData?.account?.campaigns || []
+
+  const appliedRulesByCampaignId = useMemo(() => {
+  if (!selectedAdAccount?.id) return new Map<string, number>()
+
+  return campaignRules.reduce((acc: Map<string, number>, rule: any) => {
+    if (rule.adAccount?.id === selectedAdAccount.id) {
+      acc.set(rule.campaignId, (acc.get(rule.campaignId) || 0) + 1)
+    }
+    return acc
+  }, new Map<string, number>())
+}, [campaignRules, selectedAdAccount?.id])
 
   const handleRefresh = async () => {
     if (!selectedAdAccountId || isRefreshing) return
@@ -367,11 +387,18 @@ const Campaigns: React.FC = () => {
               {campaigns.map((campaign: any) => (
                 <tr key={campaign.id} className="table-row">
                   <td className="table-cell">
-                    <div className="flex items-center">
-                      <Megaphone className="h-5 w-5 text-gray-400 mr-3" />
-                      <span className="font-medium text-gray-900">{campaign.name}</span>
-                    </div>
-                  </td>
+  <div className="flex items-center">
+    <Megaphone className="h-5 w-5 text-gray-400 mr-3" />
+    <div>
+      <span className="font-medium text-gray-900">{campaign.name}</span>
+      {appliedRulesCount > 0 && (
+        <div className="text-xs text-blue-600 mt-1">
+          Уже есть applied rules: {appliedRulesCount}
+        </div>
+      )}
+    </div>
+  </div>
+</td>
                   <td className="table-cell text-gray-500">
                     {campaign.campaignId}
                   </td>
@@ -540,7 +567,7 @@ const Campaigns: React.FC = () => {
                 {isApplyingTemplate && (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 )}
-                <span>Применить шаблон</span>
+                <span>{appliedRulesCount > 0 ? 'Добавить ещё шаблон' : 'Применить шаблон'}</span>
               </button>
             </div>
           </div>
